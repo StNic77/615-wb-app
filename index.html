@@ -431,6 +431,7 @@
           <div class="row">
             <button class="btn good" id="btnCertify">CERTIFY</button>
             <button class="btn warn" id="btnReturnToAvailableCert">Return to Available</button>
+            <button class="btn" id="btnPrintPDF" onclick="generateWBReport()" style="background:rgba(98,168,255,.18);border-color:rgba(98,168,255,.55);">&#8659; Save W&amp;B PDF</button>
           </div>
           <div class="small" id="certMsg" style="margin-top:8px;"></div>
         </div>
@@ -463,7 +464,9 @@
   </section>
 </main>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="config.js"></script>
 <script src="mcdu.js"></script>
 <script src="compute.js"></script>
+<script src="pdf.js"></script>
 <script src="app.js"></script>

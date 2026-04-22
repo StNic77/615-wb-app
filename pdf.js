@@ -1,0 +1,751 @@
+/*
+ * pdf.js — CH-149 Cormorant W&B App
+ * 615 Wing, DLTP 101C-615
+ *
+ * Generates a printable / email-ready PDF record of the W&B certification.
+ * Uses jsPDF (loaded via CDN in index.html).
+ *
+ * Entry point: generateWBReport()
+ * Called by the "Print / Save PDF" button on the Certify tab.
+ *
+ * Document sections:
+ *   1. Header         — unit, tail, date, FE, AC commander (optional)
+ *   2. Acceptance     — basic weight, basic CG, fuel log
+ *   3. Mission Config — preset, role-fit items installed
+ *   4. Mission Equip  — equipment loaded with weights and stowage
+ *   5. Crew & Pax     — seats installed and occupied
+ *   6. Fuel           — total, landing reserve, tank breakdown
+ *   7. Load Planning  — bay loads and cargo entries (if any)
+ *   8. W&B Summary    — operating weight/CG, AUW/CG, envelope result
+ *   9. CG Envelope    — plotted polygon with aircraft point
+ *  10. Certification  — FE signature block, MCDU cross-check values
+ */
+
+/* =========================
+   MAIN ENTRY POINT
+   ========================= */
+
+function generateWBReport() {
+  const tail = STORE.selectedTail;
+  const s    = STORE.sessions?.[tail];
+
+  if (!s) {
+    alert("No aircraft selected.");
+    return;
+  }
+  if (!s.accepted?.isAccepted) {
+    alert("Aircraft must be accepted before generating a report.");
+    return;
+  }
+  if (!s.certify?.certified) {
+    alert("W&B must be certified before generating a report.");
+    return;
+  }
+
+  // Load jsPDF — it must be available on window
+  if (typeof window.jspdf === "undefined" && typeof jsPDF === "undefined") {
+    alert("PDF library not loaded. Check your internet connection and reload the app.");
+    return;
+  }
+
+  const { jsPDF } = window.jspdf || window;
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "letter" });
+
+  const wb = computeWB(tail);
+  const ctx = new PDFContext(doc, tail, s, wb);
+
+  ctx.drawHeader();
+  ctx.drawAcceptance();
+  ctx.drawMissionConfig();
+  ctx.drawMissionEquip();
+  ctx.drawSeats();
+  ctx.drawFuel();
+  ctx.drawLoadPlanning();
+  ctx.drawWBSummary();
+  ctx.drawEnvelopePlot();
+  ctx.drawCertification();
+
+  // File name: WB_615_[TAIL]_[DATE].pdf
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  doc.save(`WB_615_${tail}_${dateStr}.pdf`);
+}
+
+
+/* =========================
+   PDF CONTEXT
+   Helper class that tracks cursor position and provides
+   drawing primitives. All Y positions are managed here
+   so sections don't need to know where the previous one ended.
+   ========================= */
+
+class PDFContext {
+  constructor(doc, tail, session, wb) {
+    this.doc     = doc;
+    this.tail    = tail;
+    this.s       = session;
+    this.wb      = wb;
+
+    // Page geometry (letter: 216 x 279 mm)
+    this.pageW   = 216;
+    this.pageH   = 279;
+    this.marginL = 14;
+    this.marginR = 14;
+    this.contentW = this.pageW - this.marginL - this.marginR;
+
+    // Cursor
+    this.y       = 14;
+
+    // Colours
+    this.C_DARK   = [15,  25,  50];   // near-black navy
+    this.C_MED    = [60,  80, 120];   // mid navy
+    this.C_LIGHT  = [200, 210, 230];  // light blue-grey
+    this.C_GOOD   = [30,  160,  90];
+    this.C_WARN   = [200, 140,  20];
+    this.C_BAD    = [200,  50,  60];
+    this.C_WHITE  = [255, 255, 255];
+    this.C_PAGE   = [245, 247, 252];  // page background tint
+  }
+
+  // ── Primitives ──────────────────────────────────────────────
+
+  newPage() {
+    this.doc.addPage();
+    this.y = 14;
+    this._drawPageBg();
+  }
+
+  _drawPageBg() {
+    this.doc.setFillColor(...this.C_PAGE);
+    this.doc.rect(0, 0, this.pageW, this.pageH, "F");
+  }
+
+  checkPageBreak(needed) {
+    if (this.y + needed > this.pageH - 16) {
+      this.newPage();
+    }
+  }
+
+  text(str, x, y, opts = {}) {
+    this.doc.text(str ?? "", x, y, opts);
+  }
+
+  setFont(style = "normal", size = 9) {
+    this.doc.setFont("helvetica", style);
+    this.doc.setFontSize(size);
+  }
+
+  setColor(...rgb) {
+    this.doc.setTextColor(...rgb);
+  }
+
+  hRule(y, color = this.C_LIGHT) {
+    this.doc.setDrawColor(...color);
+    this.doc.setLineWidth(0.2);
+    this.doc.line(this.marginL, y, this.pageW - this.marginR, y);
+  }
+
+  // Section header bar
+  sectionHeader(label) {
+    this.checkPageBreak(12);
+    this.doc.setFillColor(...this.C_DARK);
+    this.doc.rect(this.marginL, this.y, this.contentW, 7, "F");
+    this.setFont("bold", 9);
+    this.setColor(...this.C_WHITE);
+    this.text(label.toUpperCase(), this.marginL + 3, this.y + 5);
+    this.setColor(0, 0, 0);
+    this.y += 10;
+  }
+
+  // Two-column key/value row
+  kvRow(label, value, highlight = null) {
+    this.checkPageBreak(7);
+    const col1 = this.marginL;
+    const col2 = this.marginL + 55;
+
+    this.setFont("normal", 8);
+    this.setColor(...this.C_MED);
+    this.text(label, col1, this.y);
+
+    this.setFont("bold", 8);
+    if (highlight === "good")       this.setColor(...this.C_GOOD);
+    else if (highlight === "warn")  this.setColor(...this.C_WARN);
+    else if (highlight === "bad")   this.setColor(...this.C_BAD);
+    else                            this.setColor(...this.C_DARK);
+
+    this.text(String(value ?? "—"), col2, this.y);
+    this.setColor(0, 0, 0);
+    this.y += 5.5;
+  }
+
+  // Table: headers + rows
+  table(headers, rows, colWidths) {
+    const rowH  = 6;
+    const hdrH  = 7;
+    const x0    = this.marginL;
+
+    this.checkPageBreak(hdrH + rowH);
+
+    // Header row
+    this.doc.setFillColor(...this.C_MED);
+    this.doc.rect(x0, this.y, this.contentW, hdrH, "F");
+    this.setFont("bold", 7.5);
+    this.setColor(...this.C_WHITE);
+    let cx = x0 + 2;
+    for (let i = 0; i < headers.length; i++) {
+      this.text(headers[i], cx, this.y + 5);
+      cx += colWidths[i];
+    }
+    this.y += hdrH;
+
+    // Data rows
+    rows.forEach((row, ri) => {
+      this.checkPageBreak(rowH + 2);
+      if (ri % 2 === 0) {
+        this.doc.setFillColor(235, 238, 248);
+        this.doc.rect(x0, this.y - 1, this.contentW, rowH, "F");
+      }
+      this.setFont("normal", 7.5);
+      this.setColor(...this.C_DARK);
+      cx = x0 + 2;
+      for (let i = 0; i < row.length; i++) {
+        const cell = String(row[i] ?? "");
+        // Truncate if too wide (rough guard)
+        this.text(cell, cx, this.y + 4);
+        cx += colWidths[i];
+      }
+      this.y += rowH;
+    });
+
+    this.hRule(this.y);
+    this.y += 4;
+  }
+
+  // Small italic note
+  note(str) {
+    this.checkPageBreak(6);
+    this.setFont("italic", 7.5);
+    this.setColor(...this.C_MED);
+    this.text(str, this.marginL, this.y);
+    this.setColor(0, 0, 0);
+    this.y += 5;
+  }
+
+  spacer(h = 4) {
+    this.y += h;
+  }
+
+
+  // ── Section Renderers ────────────────────────────────────────
+
+  drawHeader() {
+    const doc = this.doc;
+    const s   = this.s;
+
+    // Page background
+    this._drawPageBg();
+
+    // Top banner
+    doc.setFillColor(...this.C_DARK);
+    doc.rect(0, 0, this.pageW, 28, "F");
+
+    // Title
+    this.setFont("bold", 16);
+    this.setColor(...this.C_WHITE);
+    this.text("WEIGHT & BALANCE RECORD", this.marginL, 12);
+
+    // Subtitle
+    this.setFont("normal", 9);
+    this.setColor(...this.C_LIGHT);
+    this.text("CH-149 Cormorant · 19 Wing Comox · 615 Squadron", this.marginL, 19);
+
+    // Date/time top-right
+    const now     = new Date();
+    const dateStr = now.toLocaleDateString("en-CA", { year:"numeric", month:"short", day:"2-digit" });
+    const timeStr = now.toLocaleTimeString("en-CA", { hour:"2-digit", minute:"2-digit", hour12:false });
+    this.setFont("normal", 8);
+    this.text(`${dateStr}  ${timeStr} L`, this.pageW - this.marginR, 12, { align:"right" });
+    this.text("LOCAL", this.pageW - this.marginR, 19, { align:"right" });
+
+    this.y = 34;
+
+    // Tombstone data row
+    const tombstoneH = 20;
+    doc.setFillColor(225, 230, 245);
+    doc.rect(this.marginL, this.y, this.contentW, tombstoneH, "F");
+    doc.setDrawColor(...this.C_LIGHT);
+    doc.setLineWidth(0.3);
+    doc.rect(this.marginL, this.y, this.contentW, tombstoneH, "S");
+
+    const fields = [
+      { label: "TAIL #",       value: this.tail },
+      { label: "PRESET",       value: s.preset ? (AC.presets[s.preset]?.name ?? s.preset) : "Custom" },
+      { label: "FE (CERTIFY)", value: s.certify?.by ?? "—" },
+      { label: "ACCEPTED BY",  value: s.accepted?.by ?? "—" },
+    ];
+
+    const colW  = this.contentW / fields.length;
+    fields.forEach((f, i) => {
+      const fx = this.marginL + i * colW + 4;
+      this.setFont("normal", 7);
+      this.setColor(...this.C_MED);
+      this.text(f.label, fx, this.y + 6);
+      this.setFont("bold", 10);
+      this.setColor(...this.C_DARK);
+      this.text(String(f.value), fx, this.y + 14);
+    });
+
+    this.y += tombstoneH + 6;
+    this.hRule(this.y);
+    this.y += 5;
+  }
+
+
+  drawAcceptance() {
+    const s = this.s;
+    this.sectionHeader("1 · Acceptance (Logbook Entry)");
+
+    const at = s.accepted.at
+      ? new Date(s.accepted.at).toLocaleString("en-CA", { dateStyle:"medium", timeStyle:"short" })
+      : "—";
+
+    this.kvRow("Basic Weight",     `${s.accepted.basicW ?? "—"} kg`);
+    this.kvRow("Basic CG",         `${s.accepted.basicCG ?? "—"} mm`);
+    this.kvRow("Fuel (log entry)", `${s.accepted.fuelLog ?? "—"} kg`);
+    this.kvRow("Accepted by",      s.accepted.by ?? "—");
+    this.kvRow("Accepted at",      at);
+    this.spacer();
+  }
+
+
+  drawMissionConfig() {
+    const s = this.s;
+    this.sectionHeader("2 · Mission Configuration");
+
+    const presetName = s.preset ? (AC.presets[s.preset]?.name ?? s.preset) : "Custom (no preset)";
+    const notes      = s.preset ? (AC.presets[s.preset]?.notes ?? "") : "";
+
+    this.kvRow("Preset applied", presetName);
+    if (notes) this.note(`Note: ${notes}`);
+    this.spacer(2);
+
+    // Role-fit table — only installed items
+    const rfRows = Object.entries(AC.roleFit)
+      .filter(([k]) => s.roleFit[k])
+      .map(([, it]) => [it.name, `${it.w} kg`, `${it.arm} mm`]);
+
+    const rfOff = Object.entries(AC.roleFit)
+      .filter(([k]) => !s.roleFit[k])
+      .map(([, it]) => it.name);
+
+    if (rfRows.length) {
+      this.setFont("bold", 8);
+      this.setColor(...this.C_DARK);
+      this.text("Role-Fit Installed:", this.marginL, this.y);
+      this.y += 5;
+      this.table(
+        ["Item", "Weight", "Arm"],
+        rfRows,
+        [130, 25, 33]
+      );
+    }
+
+    if (rfOff.length) {
+      this.note(`Not installed: ${rfOff.join(", ")}`);
+    }
+    this.spacer();
+  }
+
+
+  drawMissionEquip() {
+    const s = this.s;
+    this.sectionHeader("3 · Mission Equipment");
+
+    const meRows = Object.entries(AC.missionEquip)
+      .filter(([k]) => s.mission[k])
+      .map(([, it]) => [
+        it.name,
+        `${it.w} kg`,
+        `${it.arm} mm`,
+        it.stow ?? "—"
+      ]);
+
+    if (meRows.length === 0) {
+      this.note("No mission equipment loaded.");
+    } else {
+      this.table(
+        ["Item", "Weight", "Arm", "Stowage"],
+        meRows,
+        [80, 22, 25, 61]
+      );
+    }
+    this.spacer();
+  }
+
+
+  drawSeats() {
+    const s = this.s;
+    this.sectionHeader("4 · Crew & Passenger Seats");
+
+    const personW = 90; // kg std occupant weight
+
+    // Crew
+    const crewRows = Object.entries(AC.crewSeats)
+      .filter(([k]) => s.seats[k])
+      .map(([k, it]) => {
+        const occupied = !!s.occupants?.[k];
+        return [
+          it.name,
+          `${it.arm} mm`,
+          `${it.wSeat} kg`,
+          occupied ? `${personW} kg` : "vacant",
+          occupied ? `${it.wSeat + personW} kg` : `${it.wSeat} kg`
+        ];
+      });
+
+    // Pax
+    const paxRows = Object.entries(AC.paxSeats)
+      .filter(([k]) => s.seats[k])
+      .map(([k, it]) => {
+        const occupied = !!s.occupants?.[k];
+        return [
+          it.name,
+          `${it.arm} mm`,
+          `${it.wSeat} kg`,
+          occupied ? `${personW} kg` : "vacant",
+          occupied ? `${it.wSeat + personW} kg` : `${it.wSeat} kg`
+        ];
+      });
+
+    const headers  = ["Seat", "Arm", "Seat Wt", "Occupant", "Total"];
+    const colWidths = [68, 25, 22, 24, 22];
+
+    if (crewRows.length) {
+      this.setFont("bold", 8);
+      this.setColor(...this.C_DARK);
+      this.text("Crew:", this.marginL, this.y);
+      this.y += 5;
+      this.table(headers, crewRows, colWidths);
+    }
+
+    if (paxRows.length) {
+      this.setFont("bold", 8);
+      this.setColor(...this.C_DARK);
+      this.text("Passengers:", this.marginL, this.y);
+      this.y += 5;
+      this.table(headers, paxRows, colWidths);
+    }
+
+    if (!crewRows.length && !paxRows.length) {
+      this.note("No seats installed.");
+    }
+    this.spacer();
+  }
+
+
+  drawFuel() {
+    const s  = this.s;
+    const wb = this.wb;
+    this.sectionHeader("5 · Fuel");
+
+    this.kvRow("Total fuel (departure)", `${wb.fuelTotal} kg`);
+    this.kvRow("Landing reserve",        `${s.fuel?.landing ?? 300} kg`);
+    this.kvRow("Burn (est.)",            `${Math.max(0, wb.fuelTotal - (s.fuel?.landing ?? 300))} kg`);
+    this.spacer(2);
+
+    // Tank breakdown
+    const tanks = wb.fuelTanks || {};
+    const tankRows = Object.entries(AC.fuelTankArms).map(([k, arm]) => [
+      k,
+      `${arm} mm`,
+      `${tanks[k] ?? 0} kg`
+    ]);
+
+    this.setFont("bold", 8);
+    this.setColor(...this.C_DARK);
+    this.text("Tank Distribution:", this.marginL, this.y);
+    this.y += 5;
+    this.table(["Tank", "Arm", "Contents"], tankRows, [40, 40, 40]);
+    this.spacer();
+  }
+
+
+  drawLoadPlanning() {
+    const s = this.s;
+    this.sectionHeader("6 · Load Planning");
+
+    // Bay loads
+    const bays    = s.bays || {};
+    const bayRows = Object.entries(AC.bayArms)
+      .filter(([k]) => (bays[k] ?? 0) > 0)
+      .map(([k, arm]) => [k, `${arm} mm`, `${bays[k]} kg`]);
+
+    // MCDU Cargo entries
+    const cargoRows = (s.cargo || [])
+      .map((c, i) => [`Cargo ${i+1}`, `${c.arm ?? 0} mm`, `${c.w ?? 0} kg`])
+      .filter(r => parseFloat(r[2]) > 0);
+
+    // Zone loads
+    const zoneRows = (s.zones || [])
+      .filter(z => (z?.w ?? 0) > 0)
+      .map(z => [z.label ?? z.id ?? "—", `${z.arm ?? 0} mm`, `${z.w} kg`]);
+
+    if (!bayRows.length && !cargoRows.length && !zoneRows.length) {
+      this.note("No additional loads entered in Load Planning.");
+    } else {
+      const headers  = ["Location", "Arm", "Weight"];
+      const colWidths = [100, 40, 48];
+
+      if (bayRows.length) {
+        this.setFont("bold", 8);
+        this.setColor(...this.C_DARK);
+        this.text("Bay Loads:", this.marginL, this.y);
+        this.y += 5;
+        this.table(headers, bayRows, colWidths);
+      }
+      if (cargoRows.length) {
+        this.setFont("bold", 8);
+        this.setColor(...this.C_DARK);
+        this.text("MCDU Cargo:", this.marginL, this.y);
+        this.y += 5;
+        this.table(headers, cargoRows, colWidths);
+      }
+      if (zoneRows.length) {
+        this.setFont("bold", 8);
+        this.setColor(...this.C_DARK);
+        this.text("Stowage Zone Loads:", this.marginL, this.y);
+        this.y += 5;
+        this.table(headers, zoneRows, colWidths);
+      }
+    }
+    this.spacer();
+  }
+
+
+  drawWBSummary() {
+    const wb  = this.wb;
+    const s   = this.s;
+    this.sectionHeader("7 · Weight & Balance Summary");
+
+    const envStatus  = wb.flags.envOk ? "WITHIN ENVELOPE" : "OUT OF ENVELOPE";
+    const envHl      = wb.flags.envOk ? "good" : "bad";
+    const cgStatus   = wb.flags.hardCgOk ? "PASS" : "FAIL";
+    const cgHl       = wb.flags.hardCgOk ? "good" : "bad";
+    const auwStatus  = wb.flags.overweightAirborne ? "OVERWEIGHT" : "OK";
+    const auwHl      = wb.flags.overweightAirborne ? "bad" : "good";
+
+    this.kvRow("Basic Weight",         `${s.accepted.basicW ?? "—"} kg`);
+    this.kvRow("Basic CG",             `${s.accepted.basicCG ?? "—"} mm`);
+    this.spacer(1);
+    this.kvRow("Operating Weight",     `${wb.opW} kg`);
+    this.kvRow("Operating CG",         `${wb.opCG} mm`);
+    this.spacer(1);
+    this.kvRow("Fuel (departure)",     `${wb.fuelTotal} kg`);
+    this.spacer(1);
+    this.kvRow("AUW",                  `${wb.auw} kg`,   auwHl);
+    this.kvRow("AUW CG",               `${wb.auwCG} mm`);
+    this.kvRow("CG Band",              wb.cgBand);
+    this.spacer(1);
+    this.kvRow("CG Hard Limits",       cgStatus,         cgHl);
+    this.kvRow("Envelope",             envStatus,        envHl);
+    this.kvRow("In Main Envelope",     wb.flags.inMain   ? "YES" : "NO");
+    this.kvRow("In Alt Envelope",      wb.flags.inAlt    ? "YES" : "NO");
+    this.kvRow("AUW Check",            auwStatus,        auwHl);
+
+    if (s.certify?.mcdu) {
+      this.spacer(2);
+      this.setFont("bold", 8);
+      this.setColor(...this.C_DARK);
+      this.text("MCDU Cross-Check Values:", this.marginL, this.y);
+      this.y += 5;
+      this.kvRow("MCDU AUW",  `${s.certify.mcdu.auw} kg`);
+      this.kvRow("MCDU CG",   `${s.certify.mcdu.cg} mm`);
+      this.kvRow("MCDU Fuel", `${s.certify.mcdu.fuel} kg`);
+    }
+    this.spacer();
+  }
+
+
+  drawEnvelopePlot() {
+    this.checkPageBreak(100);
+    this.sectionHeader("8 · CG Envelope Plot");
+
+    const wb      = this.wb;
+    const plotX   = this.marginL;
+    const plotY   = this.y;
+    const plotW   = this.contentW;
+    const plotH   = 85;
+    const doc     = this.doc;
+
+    // Background
+    doc.setFillColor(245, 247, 252);
+    doc.rect(plotX, plotY, plotW, plotH, "F");
+    doc.setDrawColor(...this.C_LIGHT);
+    doc.setLineWidth(0.3);
+    doc.rect(plotX, plotY, plotW, plotH, "S");
+
+    // Envelope data
+    const envMain = AC.envelope.envMain;
+    const envAlt  = AC.envelope.envAlt;
+
+    // Determine axis bounds with padding
+    const allPts  = [...envMain, ...envAlt];
+    const cgMin   = Math.min(...allPts.map(p => p.cg)) - 50;
+    const cgMax   = Math.max(...allPts.map(p => p.cg)) + 50;
+    const wMin    = Math.min(...allPts.map(p => p.w))  - 300;
+    const wMax    = Math.max(...allPts.map(p => p.w))  + 300;
+
+    const pad = { l: 18, r: 8, t: 8, b: 14 };
+    const innerW = plotW - pad.l - pad.r;
+    const innerH = plotH - pad.t - pad.b;
+
+    const toX = (cg) => plotX + pad.l + ((cg - cgMin) / (cgMax - cgMin)) * innerW;
+    const toY = (w)  => plotY + pad.t + innerH - ((w - wMin)  / (wMax  - wMin))  * innerH;
+
+    // Grid lines (light)
+    doc.setDrawColor(210, 215, 230);
+    doc.setLineWidth(0.15);
+
+    // Vertical grid (CG)
+    const cgStep = 100;
+    for (let cg = Math.ceil(cgMin/cgStep)*cgStep; cg <= cgMax; cg += cgStep) {
+      const x = toX(cg);
+      doc.line(x, plotY + pad.t, x, plotY + pad.t + innerH);
+      this.setFont("normal", 6);
+      this.setColor(130, 140, 160);
+      doc.text(String(cg), x, plotY + plotH - 2, { align: "center" });
+    }
+
+    // Horizontal grid (weight)
+    const wStep = 1000;
+    for (let w = Math.ceil(wMin/wStep)*wStep; w <= wMax; w += wStep) {
+      const y = toY(w);
+      doc.line(plotX + pad.l, y, plotX + pad.l + innerW, y);
+      this.setFont("normal", 6);
+      this.setColor(130, 140, 160);
+      doc.text(String(w), plotX + pad.l - 1, y + 1.5, { align: "right" });
+    }
+
+    // Draw main envelope polygon
+    doc.setDrawColor(60, 120, 200);
+    doc.setLineWidth(0.6);
+    doc.setFillColor(60, 120, 200, 0.08);
+
+    const mainPts = envMain.map(p => [toX(p.cg), toY(p.w)]);
+    doc.setFillColor(180, 200, 235);
+
+    // Fill
+    doc.moveTo(mainPts[0][0], mainPts[0][1]);
+    mainPts.slice(1).forEach(([x, y]) => doc.lineTo(x, y));
+    doc.close();
+    doc.fill();
+
+    // Stroke
+    doc.setDrawColor(60, 120, 200);
+    doc.setLineWidth(0.6);
+    doc.moveTo(mainPts[0][0], mainPts[0][1]);
+    mainPts.slice(1).forEach(([x, y]) => doc.lineTo(x, y));
+    doc.close();
+    doc.stroke();
+
+    // Draw alt envelope polygon
+    if (envAlt && envAlt.length) {
+      const altPts = envAlt.map(p => [toX(p.cg), toY(p.w)]);
+      doc.setFillColor(200, 220, 250);
+      doc.setDrawColor(80, 140, 210);
+      doc.setLineWidth(0.4);
+      doc.moveTo(altPts[0][0], altPts[0][1]);
+      altPts.slice(1).forEach(([x, y]) => doc.lineTo(x, y));
+      doc.close();
+      doc.fillStroke();
+    }
+
+    // Plot the aircraft point
+    const ptX = toX(wb.auwCG);
+    const ptY = toY(wb.auw);
+    const ptColor = wb.flags.envOk ? this.C_GOOD : this.C_BAD;
+
+    doc.setFillColor(...ptColor);
+    doc.setDrawColor(...ptColor);
+    doc.circle(ptX, ptY, 2.5, "F");
+
+    // Crosshairs
+    doc.setLineWidth(0.3);
+    doc.setDrawColor(...ptColor);
+    doc.line(ptX - 5, ptY, ptX + 5, ptY);
+    doc.line(ptX, ptY - 5, ptX, ptY + 5);
+
+    // Point label
+    this.setFont("bold", 7);
+    this.setColor(...ptColor);
+    doc.text(`AUW ${wb.auw} kg`, ptX + 3, ptY - 2);
+    doc.text(`CG ${wb.auwCG} mm`, ptX + 3, ptY + 4);
+
+    // Axis labels
+    this.setFont("bold", 7);
+    this.setColor(...this.C_MED);
+    doc.text("CG (mm)", plotX + pad.l + innerW / 2, plotY + plotH, { align: "center" });
+    doc.text("AUW (kg)", plotX + 4, plotY + pad.t + innerH / 2, { angle: 90, align: "center" });
+
+    // Envelope result badge
+    const badgeColor = wb.flags.envOk ? this.C_GOOD : this.C_BAD;
+    const badgeText  = wb.flags.envOk ? "WITHIN ENVELOPE" : "OUT OF ENVELOPE";
+    doc.setFillColor(...badgeColor);
+    doc.roundedRect(plotX + plotW - 52, plotY + 4, 48, 8, 2, 2, "F");
+    this.setFont("bold", 7.5);
+    this.setColor(...this.C_WHITE);
+    doc.text(badgeText, plotX + plotW - 28, plotY + 9.5, { align: "center" });
+
+    this.y = plotY + plotH + 6;
+    this.spacer();
+  }
+
+
+  drawCertification() {
+    const s  = this.s;
+    this.checkPageBreak(45);
+    this.sectionHeader("9 · Certification");
+
+    const certAt = s.certify?.at
+      ? new Date(s.certify.at).toLocaleString("en-CA", { dateStyle:"medium", timeStyle:"short" })
+      : "—";
+
+    this.kvRow("Certified by (FE Svc #)", s.certify?.by   ?? "—");
+    this.kvRow("Certified at",            certAt);
+    this.spacer(3);
+
+    // Signature block
+    const sigY  = this.y;
+    const sigH  = 22;
+    const col1W = 90;
+    const col2W = this.contentW - col1W - 6;
+
+    // FE signature box
+    this.doc.setDrawColor(...this.C_LIGHT);
+    this.doc.setLineWidth(0.3);
+    this.doc.rect(this.marginL, sigY, col1W, sigH, "S");
+
+    this.setFont("normal", 7);
+    this.setColor(...this.C_MED);
+    this.text("Flight Engineer Signature", this.marginL + 3, sigY + 5);
+    this.text("Svc #: " + (s.certify?.by ?? ""), this.marginL + 3, sigY + 10);
+    this.text("Date / Time: " + certAt, this.marginL + 3, sigY + 16);
+
+    // Ops copy box
+    this.doc.rect(this.marginL + col1W + 6, sigY, col2W, sigH, "S");
+    this.setFont("normal", 7);
+    this.setColor(...this.C_MED);
+    this.text("FOR OPS USE", this.marginL + col1W + 9, sigY + 5);
+    this.text("Received by:", this.marginL + col1W + 9, sigY + 11);
+    this.text("Date / Time:", this.marginL + col1W + 9, sigY + 17);
+
+    this.y = sigY + sigH + 6;
+
+    // Footer
+    this.hRule(this.y);
+    this.y += 4;
+    this.setFont("italic", 7);
+    this.setColor(...this.C_MED);
+    const footerText = `CH-149 · 615 Sqn · ${this.tail} · Generated ${new Date().toLocaleString("en-CA")} · This document is a planning tool and does not replace certified aircraft documentation.`;
+    this.text(footerText, this.pageW / 2, this.y, { align: "center" });
+  }
+}
