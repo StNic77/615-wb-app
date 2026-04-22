@@ -1,0 +1,546 @@
+/*
+ * styles.css — CH-149 Cormorant W&B App
+ * 615 Wing, DLTP 101C-615
+ *
+ * All visual styling lives here.
+ * Loaded by index.html via <link rel="stylesheet" href="styles.css">
+ *
+ * Sections:
+ *   1. CSS Variables (colour palette, spacing, fonts)
+ *   2. Base / Reset
+ *   3. Header & Navigation
+ *   4. Layout (grid, cards, columns)
+ *   5. Form Controls (inputs, selects, buttons)
+ *   6. Components (chips, badges, toggles, tables, KPI boxes)
+ *   7. MCDU Display Styles
+ *   8. Canvas & Envelope Plot
+ *   9. Utility Classes
+ */
+
+:root{
+      --bg:#0b1220;
+      --panel:#111a2e;
+      --panel2:#0f1730;
+      --text:#e8eefc;
+      --muted:#aab6d6;
+      --good:#35d07f;
+      --warn:#ffbf3c;
+      --bad:#ff5a73;
+      --accent:#62a8ff;
+      --line:#243154;
+      --chip:#1a2750;
+      --btn:#1d2b57;
+      --btn2:#243765;
+      --shadow: 0 10px 30px rgba(0,0,0,.35);
+      --radius:14px;
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+      --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:var(--sans);
+      background: radial-gradient(1200px 800px at 30% 0%, #13214a 0%, var(--bg) 60%);
+      color:var(--text);
+    }
+    header{
+      position:sticky; top:0; z-index:50;
+      background: rgba(10,16,32,.75);
+      backdrop-filter: blur(10px);
+      border-bottom:1px solid rgba(255,255,255,.08);
+    }
+    .topbar{
+      display:flex; gap:12px; align-items:center; justify-content:space-between;
+      padding:12px 16px;
+      max-width:1200px; margin:0 auto;
+    }
+    .brand{
+      display:flex; gap:12px; align-items:center;
+      min-width: 280px;
+    }
+    .dot{
+      width:12px; height:12px; border-radius:50%;
+      background: var(--accent);
+      box-shadow: 0 0 18px rgba(98,168,255,.8);
+    }
+    .title{
+      display:flex; flex-direction:column; line-height:1.1;
+    }
+    .title b{ font-size:14px; letter-spacing:.2px;}
+    .title span{ font-size:12px; color:var(--muted); }
+    .pill{
+      font-size:12px; color:var(--text);
+      background: rgba(255,255,255,.07);
+      border:1px solid rgba(255,255,255,.10);
+      padding:6px 10px;
+      border-radius:999px;
+      display:flex; gap:8px; align-items:center;
+      white-space:nowrap;
+    }
+    .tabs{
+      display:flex; flex-wrap:wrap; gap:8px; align-items:center; justify-content:flex-end;
+    }
+    .tabbtn{
+      border:1px solid rgba(255,255,255,.12);
+      background: rgba(255,255,255,.05);
+      color:var(--text);
+      padding:8px 10px;
+      border-radius:10px;
+      font-size:12px;
+      cursor:pointer;
+      user-select:none;
+      transition: .15s ease;
+    }
+    .tabbtn:hover{ background: rgba(255,255,255,.09);}
+    .tabbtn.active{
+      background: rgba(98,168,255,.18);
+      border-color: rgba(98,168,255,.55);
+      box-shadow: 0 0 0 3px rgba(98,168,255,.12);
+    }
+
+    main{ max-width:1200px; margin: 16px auto 60px; padding: 0 16px;}
+    .grid{ display:grid; gap:14px;}
+    .col2{ grid-template-columns: 1fr 1fr;}
+    .col3{ grid-template-columns: 1.2fr 1fr 1fr;}
+    @media (max-width: 900px){ .col2,.col3{ grid-template-columns:1fr; } .brand{min-width:auto;} }
+
+    .card{ 
+      background: linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02));
+      border: 1px solid rgba(255,255,255,.10);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      padding: 14px;
+    }
+
+/* =========================
+   COLLAPSIBLE CARD SUPPORT
+   ========================= */
+details.card{
+  padding:14px;
+}
+
+details.card > summary{
+  cursor:pointer;
+  user-select:none;
+  list-style:none;
+  display:flex;
+  align-items:baseline;
+  justify-content:space-between;
+  gap:10px;
+}
+
+details.card > summary::-webkit-details-marker{
+  display:none;
+}
+
+details.card > summary::after{
+  content:"▾";
+  opacity:0.8;
+}
+
+details.card:not([open]) > summary::after{
+  content:"▸";
+}
+
+details.card > summary h2{
+  margin:0;
+}
+
+    .card h2{
+      margin:0 0 10px 0;
+      font-size: 14px;
+      letter-spacing:.2px;
+      display:flex; align-items:center; justify-content:space-between;
+      gap:10px;
+    }
+    .card h2 small{ color:var(--muted); font-weight:500; font-size:12px;}
+    .row{ display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+    .row > *{ flex: 1 1 auto;}
+    .lbl{ font-size:12px; color:var(--muted); margin-bottom:6px;}
+    input, select, textarea{
+      width:100%;
+      background: rgba(0,0,0,.25);
+      border:1px solid rgba(255,255,255,.14);
+      color: var(--text);
+      border-radius: 10px;
+      padding: 10px 10px;
+      font-size: 14px;
+      outline:none;
+    }
+
+[data-zone="total"]{
+  font-size: 0.95rem;
+  font-weight: 600;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: linear-gradient(
+    180deg,
+    rgba(255,255,255,0.08),
+    rgba(255,255,255,0.04)
+  );
+  border: 1px solid rgba(255,255,255,0.15);
+}
+
+/* Over-limit emphasis */
+[data-zone="total"].over{
+  background: rgba(255,80,80,0.15);
+  border-color: rgba(255,80,80,0.6);
+}
+
+/* =========================
+   MCDU MIRROR (as in RFM DLTP 101C-615)
+   ========================= */
+
+/* --- Global MCDU “screen” look (apply to any mirror container) --- */
+.mcduScreen{
+  width: 620px;               /* default size (CERTIFY). Smaller mirrors can override width */
+margin: 0 auto;
+
+  aspect-ratio: 4 / 3;        /* placeholder until you get exact physical ratio */
+  height: auto;
+  max-width: 100%;
+  border-radius: 12px;
+  border: 2px solid rgba(255,255,255,.18);
+  background: #0b0f0c;
+  box-shadow: inset 0 0 0 2px rgba(0,0,0,.35);
+  padding: 12px;
+  overflow: hidden;
+
+  /* base text defaults */
+  font-family: ui-monospace, Menlo, Consolas, "Courier New", monospace;
+  color: #d7d7d7;
+}
+
+/* --- Global MCDU “text grid” look (apply to <pre>) --- */
+.mcduText{
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  white-space: pre;
+
+  font-family: ui-monospace, Menlo, Consolas, "Courier New", monospace;
+  font-size: 20px;            /* tune if scratchpad clips */
+  line-height: 1.15;          /* 14 rows fit */
+  letter-spacing: 0.8px;
+  color: #d7d7d7;
+}
+
+/* --- Color semantics --- */
+.mcduLabel{ color:#d7d7d7; }
+.mcduGreen{ color:#00d455; }
+
+/* ===== Backwards compatibility (your existing class names keep working) ===== */
+
+/* Cargo/Cabin mirrors currently use .mcdu + .mcdu-pre */
+/* Cargo/Cabin mirrors — bezel + shrink-to-content */
+/* Cargo/Cabin MCDU mirrors — fixed screen size + centered grid */
+.mcdu{
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  width: 520px;              /* pick one size for all mirrors */
+  height: 390px;             /* tune once; both pages will match */
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 18px 22px;        /* bezel */
+
+  border-radius: 14px;
+  border: 2px solid rgba(255,255,255,.18);
+  background: #0b0f0c;
+  box-shadow: inset 0 0 0 2px rgba(0,0,0,.35);
+  overflow: hidden;
+}
+
+
+.mcdu-pre{
+  margin: 0;
+  white-space: pre;
+  overflow: hidden;
+
+  width: auto;
+  height: auto;
+
+  font-family: ui-monospace, Menlo, Consolas, "Courier New", monospace;
+  font-size: 20px;
+  line-height: 1.15;
+  letter-spacing: 0.8px;
+  color: #d7d7d7;
+}
+
+
+.mcduCert{
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  margin: 0 auto;
+  padding: 0;
+
+  border: none;
+  background: transparent;
+  box-shadow: none;
+}
+
+.mcduPre14{
+  margin: 0;
+  white-space: pre;
+  overflow: visible;
+
+  /* MCDU screen */
+  display: block;
+    padding: 10px 28px;   /* more room left/right */
+
+  border-radius: 10px;
+  background: #0b120b;
+
+  /* True 24-character width (accounts for letter-spacing) */
+    min-width: calc(24ch + (23 * 0.7px) + 24px);  /* extra safety margin */
+  width: fit-content;                            /* allow it to grow */
+
+  text-align: left;
+
+  /* Typography tuned for 14×24 */
+  font-family: ui-monospace, Menlo, Consolas, "Courier New", monospace;
+  font-size: 20px;
+  line-height: 1.05;
+  letter-spacing: 0.7px;
+
+  color: #d7d7d7;
+}
+
+
+
+
+
+/* (Optional hooks if you later split title/scratchpad into separate elements) */
+.mcduTitleLine{ color:#d7d7d7; }
+.mcduScratch{ color:#00ff66; }
+    input:focus, select:focus, textarea:focus{
+      border-color: rgba(98,168,255,.55);
+      box-shadow: 0 0 0 3px rgba(98,168,255,.12);
+    }
+    .btn{
+      background: var(--btn);
+      border:1px solid rgba(255,255,255,.14);
+      color: var(--text);
+      padding: 10px 12px;
+      border-radius: 10px;
+      cursor:pointer;
+      font-weight: 650;
+      letter-spacing: .2px;
+      transition:.15s ease;
+      user-select:none;
+    }
+    .btn:hover{ background: var(--btn2); }
+    .btn:disabled{
+      cursor:not-allowed;
+      opacity:.55;
+    }
+    .btn.good{ background: rgba(53,208,127,.18); border-color: rgba(53,208,127,.55);}
+    .btn.warn{ background: rgba(255,191,60,.18); border-color: rgba(255,191,60,.55);}
+    .btn.bad{ background: rgba(255,90,115,.18); border-color: rgba(255,90,115,.55);}
+    .chips{ display:flex; gap:8px; flex-wrap:wrap;}
+    .chip{
+      background: rgba(26,39,80,.55);
+      border:1px solid rgba(255,255,255,.12);
+      border-radius:999px;
+      padding: 6px 10px;
+      font-size:12px;
+      display:flex; gap:8px; align-items:center;
+      user-select:none;
+    }
+    .chip b{ font-family: var(--mono); font-size:11px; color: #cfe0ff;}
+    .badge{
+      font-size:11px;
+      padding:4px 8px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.14);
+      background: rgba(255,255,255,.06);
+      color:var(--text);
+      white-space:nowrap;
+    }
+    .badge.good{ border-color: rgba(53,208,127,.55); background: rgba(53,208,127,.12);}
+    .badge.warn{ border-color: rgba(255,191,60,.55); background: rgba(255,191,60,.12);}
+    .badge.bad{ border-color: rgba(255,90,115,.55); background: rgba(255,90,115,.12);}
+    .muted{ color:var(--muted); }
+    .mono{ font-family: var(--mono); }
+    .hr{ height:1px; background: rgba(255,255,255,.10); margin: 12px 0;}
+    .kpi{
+      display:grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap:10px;
+    }
+    @media (max-width: 900px){ .kpi{ grid-template-columns:1fr; } }
+    .kpi .box{
+      background: rgba(0,0,0,.20);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius: 12px;
+      padding: 10px;
+    }
+    .kpi .box .t{ font-size:12px; color:var(--muted); margin-bottom:6px;}
+    .kpi .box .v{ font-size:18px; font-weight:800; letter-spacing:.2px;}
+    .kpi .box .s{ font-size:12px; color:var(--muted); margin-top:4px;}
+    .twoCol{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+    }
+    @media (max-width: 900px){ .twoCol{ grid-template-columns:1fr; } }
+
+    .table{
+      width:100%;
+      border-collapse:collapse;
+      font-size:13px;
+    }
+    .table th, .table td{
+      border-bottom:1px solid rgba(255,255,255,.10);
+      padding:8px 6px;
+      text-align:left;
+      vertical-align:top;
+    }
+    .table th{ color:var(--muted); font-weight:650; }
+    .small{ font-size:12px; color:var(--muted); }
+    .right{ text-align:right; }
+    .hide{ display:none !important; }
+
+    canvas{ width:100%; height: 340px; display:block; border-radius: 12px; background: rgba(0,0,0,.20); border:1px solid rgba(255,255,255,.10); }
+    .callout{
+      background: rgba(255,255,255,.05);
+      border:1px dashed rgba(255,255,255,.20);
+      border-radius: 12px;
+      padding: 10px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .toggle{
+      display:flex; align-items:center; gap:10px; justify-content:space-between;
+      padding: 10px;
+      border:1px solid rgba(255,255,255,.10);
+      border-radius: 12px;
+      background: rgba(0,0,0,.15);
+    }
+    .toggle .left{ display:flex; flex-direction:column; gap:2px;}
+    .toggle .name{ font-weight:800; font-size:13px;}
+    .toggle .meta{ color:var(--muted); font-size:12px; }
+    .switch{
+      width:44px; height:26px; border-radius:999px;
+      background: rgba(255,255,255,.10);
+      border:1px solid rgba(255,255,255,.16);
+      position:relative;
+      cursor:pointer;
+      flex: 0 0 auto;
+    }
+    .switch::after{
+      content:"";
+      width:20px; height:20px;
+      position:absolute; top:2px; left:2px;
+      border-radius:50%;
+      background: rgba(255,255,255,.75);
+      transition:.15s ease;
+    }
+    .switch.on{
+      background: rgba(53,208,127,.20);
+      border-color: rgba(53,208,127,.55);
+    }
+    .switch.on::after{ left:22px; background: rgba(53,208,127,.95);}
+
+/* ===== MCDU AUW/CG REPLICA ===== */
+.mcduWrap{
+  background:#0b0f0c;
+  border:1px solid #2a2a2a;
+  border-radius:14px;
+  padding:14px 16px 16px;
+  margin-top:12px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03);
+}
+.mcduTitle{
+  text-align:center;
+  font-family: ui-monospace, Menlo, Consolas, "Courier New", monospace;
+  color:#d7d7d7;
+  letter-spacing:6px;
+  font-size:18px;
+  margin:2px 0 10px;
+}
+.mcduGrid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 24px;
+  row-gap: 10px;
+  font-family: ui-monospace, Menlo, Consolas, "Courier New", monospace;
+  color:#d7d7d7;
+  font-size:18px;
+  line-height:1.1;
+}
+.mcduLbl{ color:#d7d7d7; letter-spacing:4px; }
+.mcduVal{ color:#00ff66; letter-spacing:2px; }
+.mcduRight{ text-align:right; }
+.mcduStatus{
+  font-family: ui-monospace, Menlo, Consolas, "Courier New", monospace;
+  color:#00ff66;
+  font-size:28px;
+  letter-spacing:2px;
+  text-align:right;
+  margin-top:6px;
+}
+.mcduBracket{
+  font-family: ui-monospace, Menlo, Consolas, "Courier New", monospace;
+  color:#00ff66;
+  letter-spacing:2px;
+  font-size:22px;
+  display:flex;
+  justify-content:space-between;
+  margin-top:10px;
+}
+.mcduRtn{
+  font-family: ui-monospace, Menlo, Consolas, "Courier New", monospace;
+  color:#00ff66;
+  letter-spacing:2px;
+  margin-top:10px;
+  font-size:18px;
+}
+.mcduBottomGrid{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  column-gap: 24px;
+  margin-top:10px;
+}
+
+.mcduBottomCell{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+}
+
+.mcduCenter{
+  text-align:center;
+}
+
+.mcduBottomGrid3{
+  display:grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  column-gap:24px;
+  margin-top:10px;
+}
+
+.mcduBottomCell{
+  display:flex;
+  flex-direction:column;
+}
+
+.mcduBottomCell.left{
+  align-items:flex-start;
+  text-align:left;
+}
+
+.mcduBottomCell.center{
+  align-items:center;
+  text-align:center;
+}
+
+.mcduBottomCell.right{
+  align-items:flex-end;
+  text-align:right;
+}
