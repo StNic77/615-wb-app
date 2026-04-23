@@ -43,6 +43,20 @@ const AC_TAILS = {
 
 
 // ─────────────────────────────────────────────────────────────────
+// SECTION 1A — CUSTODIAN AUTHENTICATION
+// ─────────────────────────────────────────────────────────────────
+// Placeholder single-password auth for the config editor.
+// When cloud hosting is added, this will be replaced by proper
+// user accounts. For now: one shared password for the custodian.
+//
+// To change the password: edit the value below and reload.
+
+const AC_AUTH = {
+  password: "custodian"
+};
+
+
+// ─────────────────────────────────────────────────────────────────
 // SECTION 2 — CG ENVELOPE
 // ─────────────────────────────────────────────────────────────────
 // Points are in { w: kg, cg: mm } pairs.
@@ -464,10 +478,17 @@ const AC_PRESETS = {
 // ─────────────────────────────────────────────────────────────────
 // EXPORT — single AC object consumed by app.js
 // ─────────────────────────────────────────────────────────────────
-// All sections above are frozen to prevent accidental mutation at
-// runtime. To change data, edit this file and reload the app.
+// The AC object starts with the defaults defined above, then
+// applies any overrides saved by the custodian editor (localStorage).
+// This means changes made in the editor persist across reloads
+// without the custodian having to modify this file.
+//
+// To reset to factory defaults: clear the "ac_config_overrides"
+// key in browser localStorage, or use the "Reset" button in the
+// editor tab.
 
-const AC = Object.freeze({
+const AC = {
+  auth:          AC_AUTH,
   tails:         AC_TAILS,
   envelope:      AC_ENVELOPE,
   bayArms:       AC_BAY_ARMS,
@@ -480,4 +501,18 @@ const AC = Object.freeze({
   roleFit:       AC_ROLE_FIT,
   missionEquip:  AC_MISSION_EQUIP,
   presets:       AC_PRESETS
-});
+};
+
+// Apply saved overrides from localStorage (editor changes persist here).
+try {
+  const saved = localStorage.getItem("ac_config_overrides");
+  if (saved) {
+    const ov = JSON.parse(saved);
+    // Only override the editable sections for now
+    if (ov.missionEquip) AC.missionEquip = ov.missionEquip;
+    if (ov.stowage)      AC.stowage      = ov.stowage;
+    if (ov.roleFit)      AC.roleFit      = ov.roleFit;
+  }
+} catch (e) {
+  console.warn("Could not load config overrides:", e);
+}

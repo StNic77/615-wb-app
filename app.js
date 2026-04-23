@@ -139,7 +139,7 @@ function buildTabs(){
 
 function setTab(id){
   // require tail selected for non-home tabs
-  if (id !== "HOME" && !STORE.selectedTail){
+  if (id !== "HOME" && id !== "EDITOR" && !STORE.selectedTail){
     alert("Select a tail first (Home).");
     return;
   }
@@ -2756,8 +2756,8 @@ function drawEnvelope(canvasEl, notesEl){
    ========================= */
 
 function render(){
-  // If no tail selected, lock to HOME
-  if (!STORE.selectedTail){
+  // If no tail selected, lock to HOME (except EDITOR which works without a tail)
+  if (!STORE.selectedTail && activeTab !== "EDITOR"){
     activeTab = "HOME";
   }
 
@@ -2773,6 +2773,7 @@ function render(){
   if (activeTab === "FUEL") renderFuel();
   if (activeTab === "CARGO") renderCargo();
   if (activeTab === "CERTIFY") renderCertify();
+  if (activeTab === "EDITOR")  { if (typeof renderEditor === "function") renderEditor(); }
 
   // Enable/disable Home feel: If a tail is selected, Home is still available as a tab
   // (You said either way is fine; this keeps it available while defaulting you to ACCEPT on selection.)
