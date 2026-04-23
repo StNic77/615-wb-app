@@ -918,7 +918,8 @@ function renderMission(){
   // Build grouped list by group heading
   const grouped = {};
   for (const k of Object.keys(AC.missionEquip)){
-    const it = AC.missionEquip[k];
+    const it = getMissionItem(k);
+    if (!it) continue;
     const g = it.group || "Mission Equipment";
     if (!grouped[g]) grouped[g] = [];
     grouped[g].push({k, it});
@@ -1062,7 +1063,8 @@ function renderMission(){
   const stow = {};
   for (const k of Object.keys(AC.missionEquip)){
     if (!s.mission[k]) continue;
-    const it = AC.missionEquip[k];
+    const it = getMissionItem(k);
+    if (!it) continue;
     const key = it.stow || "Unknown";
     if (!stow[key]) stow[key] = {w:0, m:0};
     stow[key].w += it.w;
@@ -1777,9 +1779,9 @@ if (zoneHost){
     if (String(zoneId).startsWith("SAR_")) return hasSarCabinet;
 
     const gate = {
-      FWD_PORT_TOP: "ME_FWD_SHELF_TOP",
-      FWD_PORT_MID: "ME_FWD_SHELF_MID",
-      FWD_PORT_BTM: "ME_FWD_SHELF_BOT",
+      FWD_PORT_TOP: "ME_PORT_FWD_SHELF_TOP",
+      FWD_PORT_MID: "ME_PORT_FWD_SHELF_MID",
+      FWD_PORT_BTM: "ME_PORT_FWD_SHELF_BOT",
       RAMP_PORT_FWD: "ME_RAMP_SHELF_PORT_FWD",
       RAMP_PORT_AFT: "ME_RAMP_SHELF_PORT_AFT",
       RAMP_STBD_FWD: "ME_RAMP_SHELF_STBD_FWD",

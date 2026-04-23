@@ -190,7 +190,55 @@ const AC_PAX_SEATS = {
 
 
 // ─────────────────────────────────────────────────────────────────
-// SECTION 7 — ROLE-FIT EQUIPMENT
+// SECTION 7 — STOWAGE LOCATIONS
+// ─────────────────────────────────────────────────────────────────
+// Every physical location in the aircraft where mission equipment
+// can be stored. Each location has ONE arm value.
+//
+// Mission equipment items in Section 9 reference these by ID, so
+// when the custodian adds new equipment, the arm comes automatically
+// from the chosen stowage location — eliminating data-entry errors.
+//
+// Add a new location here if the airframe gets modified (rare).
+// Do NOT delete a location that is referenced by any equipment item.
+
+const AC_STOWAGE = {
+
+  // ── SAR Equipment Storage Cabinet (all zones share arm 6275) ──
+  // Top and Upper are physically separate shelves that share an arm.
+  SAR_CABINET_TOP:    { name: "SAR Cabinet Top",        arm:  6275, group: "SAR Cabinet" },
+  SAR_CABINET_UPPER:  { name: "SAR Cabinet Upper",      arm:  6275, group: "SAR Cabinet" },
+  SAR_CABINET_MIDDLE: { name: "SAR Cabinet Middle",     arm:  6275, group: "SAR Cabinet" },
+  SAR_CABINET_BOTTOM: { name: "SAR Cabinet Bottom",     arm:  6275, group: "SAR Cabinet" },
+  LOCKBOX_TOP:        { name: "Lockbox Top Shelf",      arm:  6275, group: "SAR Cabinet" },
+
+  // ── Cabin ─────────────────────────────────────────────────────
+  CABIN_PORT_STOW:    { name: "Cabin Port Stowage",     arm: 10937, group: "Cabin" },
+  CABIN_STBD_STOW:    { name: "Cabin Stbd Stowage",     arm: 10934, group: "Cabin" },
+  CABIN_DEPLOYED:     { name: "Cabin Deployed",         arm:  7863, group: "Cabin" },
+  PTA_COT_AREA:       { name: "PTA Cot Area",           arm: 10375, group: "Cabin" },
+  OVERHEAD_STBD:      { name: "Overhead Bins (Stbd)",   arm: 10511, group: "Cabin" },
+  OVERHEAD_PORT:      { name: "Overhead Bins (Port)",   arm: 10732, group: "Cabin" },
+
+  // ── Port Forward Shelves (Top / Middle / Bottom) ─────────────
+  // The port fwd shelves are the only multi-level shelf assembly.
+  PORT_FWD_SHELF_TOP: { name: "Port Fwd Shelf (Top)",    arm:  5331, group: "Port Fwd Shelves" },
+  PORT_FWD_SHELF_MID: { name: "Port Fwd Shelf (Middle)", arm:  5331, group: "Port Fwd Shelves" },
+  PORT_FWD_SHELF_BOT: { name: "Port Fwd Shelf (Bottom)", arm:  5331, group: "Port Fwd Shelves" },
+
+  // ── Ramp Area ────────────────────────────────────────────────
+  // Four single shelves at distinct longitudinal positions.
+  // Arms verified against Load Planning load zones.
+  RAMP_STOW:          { name: "Ramp Stowage (general)",  arm: 13132, group: "Ramp" },
+  RAMP_PORT_FWD:      { name: "Ramp Shelf Port Fwd",     arm: 12463, group: "Ramp" },
+  RAMP_PORT_AFT:      { name: "Ramp Shelf Port Aft",     arm: 13226, group: "Ramp" },
+  RAMP_STBD_FWD:      { name: "Ramp Shelf Stbd Fwd",     arm: 12481, group: "Ramp" },
+  RAMP_STBD_AFT:      { name: "Ramp Shelf Stbd Aft",     arm: 13228, group: "Ramp" }
+};
+
+
+// ─────────────────────────────────────────────────────────────────
+// SECTION 8 — ROLE-FIT EQUIPMENT
 // ─────────────────────────────────────────────────────────────────
 // normally: true  = installed at basic weight (BW)
 // normally: false = NOT installed at BW; must be explicitly added
@@ -239,64 +287,69 @@ const AC_ROLE_FIT = {
 
 
 // ─────────────────────────────────────────────────────────────────
-// SECTION 8 — MISSION EQUIPMENT
+// SECTION 9 — MISSION EQUIPMENT
 // ─────────────────────────────────────────────────────────────────
+// Each item references a stowage location by ID (see Section 7).
+// The stowage provides the arm automatically — items only carry
+// their own weight, name, group, and default on/off state.
+//
 // on: true  = loaded by default at session start
 // on: false = available but not loaded by default
 //
-// group = display grouping on Mission Equip tab
-// stow  = descriptive stowage location (display only)
+// To add a new item: pick a stow ID from AC_STOWAGE, give it a
+// unique key (ME_...), name, weight (kg), and group.
 
 const AC_MISSION_EQUIP = {
 
   // ── SAR Equipment ─────────────────────────────────────────────
   ME_SAR_ZONEH:          { name: "SAR Equipment (Alpine/Camp/Drill/Extraction/MedSled/MTN-Belay/REEL/Rope x2)",
-                           w: 112.50, arm:  6275, stow: "SAR Cabinet Bottom",   group: "SAR Equipment",      on: true  },
+                           w: 112.50, stow: "SAR_CABINET_BOTTOM", group: "SAR Equipment",       on: true  },
   ME_RESCUE_BASKET_PORT: { name: "Rescue Basket (Port)",
-                           w:  31.80, arm: 10937, stow: "Cabin Port Stowage",   group: "SAR Equipment",      on: true  },
+                           w:  31.80, stow: "CABIN_PORT_STOW",    group: "SAR Equipment",       on: true  },
   ME_RESCUE_BASKET_STBD: { name: "Rescue Basket (Stbd)",
-                           w:  31.80, arm: 10934, stow: "Cabin Stbd Stowage",   group: "SAR Equipment",      on: false },
+                           w:  31.80, stow: "CABIN_STBD_STOW",    group: "SAR Equipment",       on: false },
   ME_STOKES_RAMP:        { name: "Stokes Litter (Ramp)",
-                           w:  49.00, arm: 13132, stow: "Ramp Stowage",         group: "SAR Equipment",      on: true  },
+                           w:  49.00, stow: "RAMP_STOW",          group: "SAR Equipment",       on: true  },
   ME_STOKES_CABIN:       { name: "Stokes Litter (Cabin)",
-                           w:  49.00, arm:  7863, stow: "Cabin Deployed",       group: "SAR Equipment",      on: false },
+                           w:  49.00, stow: "CABIN_DEPLOYED",     group: "SAR Equipment",       on: false },
 
   // ── Medical Equipment ─────────────────────────────────────────
   ME_MED_ZONEG:          { name: "Medical Equipment (Supp/Pen x2/Casualty/AED/Misc Bag)",
-                           w:  68.00, arm:  6275, stow: "SAR Cabinet Middle",   group: "Medical Equipment",  on: true  },
+                           w:  68.00, stow: "SAR_CABINET_MIDDLE", group: "Medical Equipment",   on: true  },
   ME_AVIOX_O2_PRIMARY:   { name: "AviOx O2 Primary (est)",
-                           w:  10.00, arm: 10375, stow: "PTA Cot Area",         group: "Medical Equipment",  on: true  },
+                           w:  10.00, stow: "PTA_COT_AREA",       group: "Medical Equipment",   on: true  },
   ME_AVIOX_O2_SPARE:     { name: "AviOx O2 Spare (est)",
-                           w:  10.00, arm: 10375, stow: "PTA Cot Area",         group: "Medical Equipment",  on: true  },
+                           w:  10.00, stow: "PTA_COT_AREA",       group: "Medical Equipment",   on: true  },
 
   // ── ALSE ──────────────────────────────────────────────────────
   ME_ALSE_ZONED:         { name: "ALSE Equipment (Arctic tent/sleep/basic/pax vests)",
-                           w:  50.50, arm:  6275, stow: "SAR Cabinet Top",      group: "ALSE",               on: true  },
+                           w:  50.50, stow: "SAR_CABINET_TOP",    group: "ALSE",                on: true  },
   ME_QDIS_X3:            { name: "Quick Don Immersion Suits x3",
-                           w:   6.00, arm:  6275, stow: "SAR Cabinet Upper",    group: "ALSE",               on: true  },
+                           w:   6.00, stow: "SAR_CABINET_UPPER",  group: "ALSE",                on: true  },
 
   // ── Misc / Mission Kits ───────────────────────────────────────
   ME_NVGS_X5:            { name: "NVGs x5",
-                           w:   4.50, arm:  6275, stow: "Lockbox Top Shelf",    group: "Misc / Mission Kits", on: true  },
+                           w:   4.50, stow: "LOCKBOX_TOP",        group: "Misc / Mission Kits", on: true  },
   ME_SAR_RIFLE:          { name: "SAR Rifle",
-                           w:   2.50, arm: 10511, stow: "Overhead Bins (Stbd)", group: "Misc / Mission Kits", on: true  },
+                           w:   2.50, stow: "OVERHEAD_STBD",      group: "Misc / Mission Kits", on: true  },
   ME_SAR_DRUG:           { name: "SAR Drug Kit",
-                           w:   1.00, arm: 10732, stow: "Overhead Bins (Port)", group: "Misc / Mission Kits", on: true  },
+                           w:   1.00, stow: "OVERHEAD_PORT",      group: "Misc / Mission Kits", on: true  },
 
   // ── Stowage Placeholders ──────────────────────────────────────
-  // Set w: to actual weight when determined. Set on: true to include by default.
-  ME_FWD_SHELF_TOP:          { name: "Fwd Shelves Top",          w: 0.00, arm:  5331, stow: "Fwd Shelves (Top)",        group: "Stowage", on: false },
-  ME_FWD_SHELF_MID:          { name: "Fwd Shelves Middle",       w: 0.00, arm:  5331, stow: "Fwd Shelves (Middle)",     group: "Stowage", on: false },
-  ME_FWD_SHELF_BOT:          { name: "Fwd Shelves Bottom",       w: 0.00, arm:  5331, stow: "Fwd Shelves (Bottom)",     group: "Stowage", on: false },
-  ME_RAMP_SHELF_PORT_FWD:    { name: "Ramp Shelf Port Fwd",      w: 0.00, arm: 13132, stow: "Ramp Shelves (Top)",       group: "Stowage", on: false },
-  ME_RAMP_SHELF_PORT_AFT:    { name: "Ramp Shelf Port Aft",      w: 0.00, arm: 13132, stow: "Ramp Shelves (Middle)",    group: "Stowage", on: false },
-  ME_RAMP_SHELF_STBD_FWD:    { name: "Ramp Shelf Stbd Fwd",      w: 0.00, arm: 13132, stow: "Ramp Shelves (Bottom)",    group: "Stowage", on: false },
-  ME_RAMP_SHELF_STBD_AFT:    { name: "Ramp Shelf Stbd Aft",      w: 0.00, arm: 13132, stow: "Ramp Shelves (Bottom)",    group: "Stowage", on: false }
+  // These represent shelf locations with no specific equipment assigned yet.
+  // Set w: to actual weight when a piece of equipment is determined for that shelf.
+  ME_PORT_FWD_SHELF_TOP:  { name: "Port Fwd Shelf Top",    w: 0.00, stow: "PORT_FWD_SHELF_TOP", group: "Stowage", on: false },
+  ME_PORT_FWD_SHELF_MID:  { name: "Port Fwd Shelf Middle", w: 0.00, stow: "PORT_FWD_SHELF_MID", group: "Stowage", on: false },
+  ME_PORT_FWD_SHELF_BOT:  { name: "Port Fwd Shelf Bottom", w: 0.00, stow: "PORT_FWD_SHELF_BOT", group: "Stowage", on: false },
+  ME_RAMP_SHELF_PORT_FWD: { name: "Ramp Shelf Port Fwd",   w: 0.00, stow: "RAMP_PORT_FWD",     group: "Stowage", on: false },
+  ME_RAMP_SHELF_PORT_AFT: { name: "Ramp Shelf Port Aft",   w: 0.00, stow: "RAMP_PORT_AFT",     group: "Stowage", on: false },
+  ME_RAMP_SHELF_STBD_FWD: { name: "Ramp Shelf Stbd Fwd",   w: 0.00, stow: "RAMP_STBD_FWD",     group: "Stowage", on: false },
+  ME_RAMP_SHELF_STBD_AFT: { name: "Ramp Shelf Stbd Aft",   w: 0.00, stow: "RAMP_STBD_AFT",     group: "Stowage", on: false }
 };
 
 
 // ─────────────────────────────────────────────────────────────────
-// SECTION 9 — MISSION PRESETS
+// SECTION 10 — MISSION PRESETS
 // ─────────────────────────────────────────────────────────────────
 // Each preset defines the full aircraft configuration for a role.
 // roleFitOn / roleFitOff use keys from AC_ROLE_FIT.
@@ -326,7 +379,7 @@ const AC_PRESETS = {
       "ME_SAR_ZONEH", "ME_MED_ZONEG", "ME_AVIOX_O2_PRIMARY", "ME_AVIOX_O2_SPARE",
       "ME_ALSE_ZONED", "ME_RESCUE_BASKET_STBD", "ME_STOKES_RAMP",
       "ME_QDIS_X3", "ME_NVGS_X5", "ME_SAR_RIFLE", "ME_SAR_DRUG",
-      "ME_FWD_SHELF_TOP", "ME_FWD_SHELF_MID", "ME_FWD_SHELF_BOT",
+      "ME_PORT_FWD_SHELF_TOP", "ME_PORT_FWD_SHELF_MID", "ME_PORT_FWD_SHELF_BOT",
       "ME_RAMP_SHELF_PORT_FWD", "ME_RAMP_SHELF_PORT_AFT",
       "ME_RAMP_SHELF_STBD_FWD", "ME_RAMP_SHELF_STBD_AFT"
     ],
@@ -354,7 +407,7 @@ const AC_PRESETS = {
       "ME_SAR_ZONEH", "ME_MED_ZONEG", "ME_AVIOX_O2_PRIMARY", "ME_AVIOX_O2_SPARE",
       "ME_ALSE_ZONED", "ME_RESCUE_BASKET_PORT", "ME_STOKES_RAMP",
       "ME_QDIS_X3", "ME_NVGS_X5", "ME_SAR_RIFLE", "ME_SAR_DRUG",
-      "ME_FWD_SHELF_TOP", "ME_FWD_SHELF_MID", "ME_FWD_SHELF_BOT",
+      "ME_PORT_FWD_SHELF_TOP", "ME_PORT_FWD_SHELF_MID", "ME_PORT_FWD_SHELF_BOT",
       "ME_RAMP_SHELF_PORT_FWD", "ME_RAMP_SHELF_PORT_AFT",
       "ME_RAMP_SHELF_STBD_FWD", "ME_RAMP_SHELF_STBD_AFT"
     ],
@@ -423,6 +476,7 @@ const AC = Object.freeze({
   fuelStages:    AC_FUEL_STAGES,
   crewSeats:     AC_CREW_SEATS,
   paxSeats:      AC_PAX_SEATS,
+  stowage:       AC_STOWAGE,
   roleFit:       AC_ROLE_FIT,
   missionEquip:  AC_MISSION_EQUIP,
   presets:       AC_PRESETS

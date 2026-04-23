@@ -11,6 +11,33 @@ function cgFromMoment(totalW, totalM){
   return totalM / totalW;
 }
 
+
+/* =========================
+   MISSION EQUIPMENT RESOLVER
+   Mission items reference a stowage location by ID (see config.js
+   Section 7). This helper returns a fully-resolved item with the
+   arm and stowage name already looked up, so calling code can just
+   read .arm and .stow without knowing about the lookup.
+   ========================= */
+
+function getMissionItem(key){
+  const it = AC.missionEquip[key];
+  if (!it) return null;
+
+  const loc = AC.stowage[it.stow];
+  return {
+    key,
+    name:  it.name,
+    w:     it.w,
+    arm:   loc ? loc.arm  : 0,
+    stow:  loc ? loc.name : (it.stow || "Unknown"),
+    stowId: it.stow,
+    stowGroup: loc ? loc.group : "",
+    group: it.group,
+    on:    it.on
+  };
+}
+
 function computeRoleFitTotals(s){
   // EOIR hand controller dependency:
   // "installed any time Sensor WS and EOIR pkg are installed"
@@ -32,10 +59,10 @@ function computeMissionTotals(s){
   let w=0, m=0;
   for (const k of Object.keys(AC.missionEquip)){
     if (!s.mission[k]) continue;
-    const it = AC.missionEquip[k];
-    const ww = it.w;
-    w += ww;
-    m += ww * it.arm;
+    const it = getMissionItem(k);
+    if (!it) continue;
+    w += it.w;
+    m += it.w * it.arm;
   }
   return {w, m};
 }
