@@ -880,3 +880,160 @@ body.theme-light .themeToggle:hover { background: var(--btn); }
     background: initial;
   }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   CERTIFY — STEPPED WORKFLOW
+   ═══════════════════════════════════════════════════════════════════ */
+
+.certify-step {
+  position: relative;
+}
+
+.certify-step-header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.certify-step-num {
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(98, 168, 255, 0.18);
+  border: 2px solid rgba(98, 168, 255, 0.55);
+  color: var(--text);
+  font-weight: 800;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+}
+
+body.theme-light .certify-step-num {
+  background: rgba(37, 99, 235, 0.12);
+  border-color: rgba(37, 99, 235, 0.55);
+  color: var(--accent);
+}
+
+/* Cross-check table inside Step 3 */
+.xcheck-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.xcheck-table th,
+.xcheck-table td {
+  padding: 10px 8px;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+}
+.xcheck-table th {
+  color: var(--muted);
+  font-weight: 650;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.xcheck-table td.num {
+  font-family: var(--mono);
+  text-align: right;
+}
+.xcheck-table tr.row-good td { background: rgba(53, 208, 127, 0.08); }
+.xcheck-table tr.row-warn td { background: rgba(255, 191, 60, 0.10); }
+.xcheck-table tr.row-bad  td { background: rgba(255, 90, 115, 0.12); }
+
+body.theme-light .xcheck-table th,
+body.theme-light .xcheck-table td {
+  border-bottom: 1px solid var(--line);
+}
+body.theme-light .xcheck-table tr.row-good td { background: rgba(21, 128, 61, 0.08); }
+body.theme-light .xcheck-table tr.row-warn td { background: rgba(180, 83, 9, 0.08); }
+body.theme-light .xcheck-table tr.row-bad  td { background: rgba(185, 28, 28, 0.10); }
+
+.xcheck-empty {
+  color: var(--muted);
+  font-style: italic;
+  padding: 12px 4px;
+}
+
+.xcheck-banner {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 700;
+  border: 1px solid;
+}
+.xcheck-banner.good {
+  background: rgba(53, 208, 127, 0.14);
+  border-color: rgba(53, 208, 127, 0.55);
+  color: var(--good);
+}
+.xcheck-banner.warn {
+  background: rgba(255, 191, 60, 0.14);
+  border-color: rgba(255, 191, 60, 0.55);
+  color: var(--warn);
+}
+.xcheck-banner.bad {
+  background: rgba(255, 90, 115, 0.14);
+  border-color: rgba(255, 90, 115, 0.55);
+  color: var(--bad);
+}
+body.theme-light .xcheck-banner.good { background: rgba(21, 128, 61, 0.10);  color: #0a5c2b; }
+body.theme-light .xcheck-banner.warn { background: rgba(180, 83, 9, 0.10);   color: #8a3d05; }
+body.theme-light .xcheck-banner.bad  { background: rgba(185, 28, 28, 0.10);  color: #8c1414; }
+
+
+/* ═══════════════════════════════════════════════════════════════════
+   CERTIFY — STEP 1 "Enter these into MCDU" cards
+   ═══════════════════════════════════════════════════════════════════ */
+
+.xcheck-inputs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.xcheck-input-card {
+  background: rgba(98, 168, 255, 0.10);
+  border: 1px solid rgba(98, 168, 255, 0.35);
+  border-radius: 10px;
+  padding: 14px 16px;
+  text-align: center;
+}
+
+.xcheck-input-lbl {
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  font-weight: 650;
+}
+
+.xcheck-input-val {
+  font-size: 32px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: var(--text);
+  line-height: 1.1;
+  margin-top: 6px;
+}
+
+.xcheck-input-unit {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--muted);
+  margin-left: 4px;
+}
+
+body.theme-light .xcheck-input-card {
+  background: rgba(37, 99, 235, 0.08);
+  border-color: rgba(37, 99, 235, 0.40);
+}
+
+@media (max-width: 640px) {
+  .xcheck-inputs { grid-template-columns: 1fr; }
+  .xcheck-input-val { font-size: 26px; }
+}

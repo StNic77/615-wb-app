@@ -532,7 +532,7 @@ function renderMcduAuwCgReplica_REAL(wb){
 
   // Pair 5 (Rows 10–11)
   L.push(lr24("{{L}}WEIGHT OPERATING{{/}}", "{{L}}DIST{{/}}"));
-    L.push(lr24(`{{G}}[${opW}{{/}}KG]`, `{{G}}[${opCG}{{/}}MM]`));
+    L.push(lr24(`[{{G}}${opW}{{/}}KG]`, `[{{G}}${opCG}{{/}}MM]`));
 
 
     // Row 12: Blank spacer
@@ -2378,6 +2378,153 @@ function renderCabinBayEditFields(s){
    CERTIFY RENDER
    ========================= */
 
+/* =========================
+   CERTIFY CROSS-CHECK TABLE
+   Renders the live comparison between app-calculated values
+   (expected) and MCDU readback values as the FE types.
+   ========================= */
+
+const CERTIFY_TOL = { auw: 100, cg: 20, fuel: 100 };
+
+function renderMcduInputsExpected(){
+  // Step 1: what the FE types INTO the MCDU (OpW and Distance/CG).
+  // Big, clearly labeled so there's no confusion about where these go.
+  const host = document.getElementById("mcduInputsExpected");
+  if (!host) return;
+  const tail = STORE.selectedTail;
+  if (!tail) { host.innerHTML = ""; return; }
+  const wb = computeWB(tail);
+
+  host.innerHTML = `
+    <div class="xcheck-inputs">
+      <div class="xcheck-input-card">
+        <div class="xcheck-input-lbl">Operating Weight</div>
+        <div class="xcheck-input-val mono">${wb.opW} <span class="xcheck-input-unit">kg</span></div>
+      </div>
+      <div class="xcheck-input-card">
+        <div class="xcheck-input-lbl">Distance (CG)</div>
+        <div class="xcheck-input-val mono">${wb.opCG} <span class="xcheck-input-unit">mm</span></div>
+      </div>
+    </div>
+    <div class="small muted" style="margin-top:8px;">
+      ⓘ Enter these two values into the MCDU. The MCDU will then compute
+      AUW and CG — read those back in Step 2.
+    </div>
+  `;
+}
+
+
+function renderCertifyCrossCheck(){
+  const host = document.getElementById("certifyCrossCheck");
+  if (!host) return;
+
+  const tail = STORE.selectedTail;
+  if (!tail) { host.innerHTML = ""; return; }
+
+  const wb = computeWB(tail);
+
+  const expected = {
+    auw:  wb.auw,
+    cg:   wb.auwCG,
+    fuel: wb.fuelTotal
+  };
+
+  // Read live values from the Step 2 inputs (not from saved state).
+  // This way the table updates as the FE types.
+  const readNum = (id) => {
+    const el = document.getElementById(id);
+    if (!el) return null;
+    const v = el.value.trim();
+    if (v === "") return null;
+    const n = +v;
+    return Number.isFinite(n) ? n : null;
+  };
+  const mcdu = {
+    auw:  readNum("mcduAUW"),
+    cg:   readNum("mcduCG"),
+    fuel: readNum("mcduFuel")
+  };
+
+  // If nothing entered yet, show a friendly placeholder
+  if (mcdu.auw === null && mcdu.cg === null && mcdu.fuel === null){
+    host.innerHTML = `
+      <div class="xcheck-empty">
+        Enter the MCDU readback values in Step 2 to see the cross-check.
+      </div>
+    `;
+    return;
+  }
+
+  const statusFor = (calc, real, tol) => {
+    if (real === null) return { level: null, word: "—" };
+    const d = Math.abs(calc - real);
+    if (d === 0)  return { level: "good", word: "MATCH" };
+    if (d <= tol) return { level: "warn", word: "WITHIN TOL" };
+    return              { level: "bad",  word: "EXCEEDS TOL" };
+  };
+
+  const rows = [
+    { label: "AUW",  unit: "kg", calc: expected.auw,  mcdu: mcdu.auw,  tol: CERTIFY_TOL.auw  },
+    { label: "CG",   unit: "mm", calc: expected.cg,   mcdu: mcdu.cg,   tol: CERTIFY_TOL.cg   },
+    { label: "Fuel", unit: "kg", calc: expected.fuel, mcdu: mcdu.fuel, tol: CERTIFY_TOL.fuel }
+  ];
+
+  let worst = null;
+  let anyEntered = false;
+  const bodyHtml = rows.map(r => {
+    const s = statusFor(r.calc, r.mcdu, r.tol);
+    if (r.mcdu !== null) anyEntered = true;
+    if (s.level === "bad")                            worst = "bad";
+    else if (s.level === "warn" && worst !== "bad")   worst = "warn";
+    else if (s.level === "good" && worst === null)    worst = "good";
+
+    const diffStr = (r.mcdu === null)
+      ? "—"
+      : (((r.calc - r.mcdu) > 0 ? "+" : "") + (r.calc - r.mcdu) + " " + r.unit);
+
+    const mcduStr = (r.mcdu === null) ? "—" : (r.mcdu + " " + r.unit);
+    const cls     = s.level ? `row-${s.level}` : "";
+
+    return `
+      <tr class="${cls}">
+        <td><b>${r.label}</b></td>
+        <td class="num">${r.calc} ${r.unit}</td>
+        <td class="num">${mcduStr}</td>
+        <td class="num">${diffStr}</td>
+        <td><b>${s.word}</b></td>
+      </tr>
+    `;
+  }).join("");
+
+  let bannerHtml = "";
+  if (anyEntered) {
+    if (worst === "good") {
+      bannerHtml = `<div class="xcheck-banner good">✓ All values match — ready to certify.</div>`;
+    } else if (worst === "warn") {
+      bannerHtml = `<div class="xcheck-banner warn">Minor discrepancies within tolerance — review before signing.</div>`;
+    } else {
+      bannerHtml = `<div class="xcheck-banner bad">Discrepancy exceeds tolerance — do not certify.</div>`;
+    }
+  }
+
+  host.innerHTML = `
+    <table class="xcheck-table">
+      <thead>
+        <tr>
+          <th>Parameter</th>
+          <th class="num" style="text-align:right;">Expected (App)</th>
+          <th class="num" style="text-align:right;">MCDU</th>
+          <th class="num" style="text-align:right;">Difference</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>${bodyHtml}</tbody>
+    </table>
+    ${bannerHtml}
+  `;
+}
+
+
 function renderCertify(){
   const tail = STORE.selectedTail;
   const s = STORE.sessions[tail];
@@ -2543,6 +2690,19 @@ if (certMsgEl){
       }
     };
   }
+
+  // Render Step 1 "enter these into the MCDU" display
+  renderMcduInputsExpected();
+
+  // Render Step 3 cross-check table and wire live updates as the FE types
+  renderCertifyCrossCheck();
+  ["mcduAUW", "mcduCG", "mcduFuel"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && !el.dataset.xcheckBound){
+      el.dataset.xcheckBound = "1";
+      el.addEventListener("input", renderCertifyCrossCheck);
+    }
+  });
 }
 
 
