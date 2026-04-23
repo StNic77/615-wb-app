@@ -1305,8 +1305,15 @@ function bindFuelInputsOnce(){
     totalEl.addEventListener("change", ()=>{
       const tail = STORE.selectedTail;
       const s = STORE.sessions[tail];
-      const v = +totalEl.value;
+      const MAX_FUEL_KG = AC.maxFuelKg;
+      let v = +totalEl.value;
       if (isNaN(v) || v < 0) return;
+      // Hard cap at max tank capacity — aircraft physically cannot hold more
+      if (v > MAX_FUEL_KG){
+        v = MAX_FUEL_KG;
+        totalEl.value = MAX_FUEL_KG;
+        alert(`Fuel total capped at ${MAX_FUEL_KG} kg (maximum tank capacity).`);
+      }
       s.fuel.total = roundKg(v);
       s.fuel.manualTanks = false; // total applies mapping
       render();
@@ -1403,16 +1410,24 @@ const wb = computeWB(tail);
 
   const LIM_15600 = 15600;
   const LIM_16000 = 16000;
+  const MAX_FUEL_KG = AC.maxFuelKg; // hard physical cap
 
-  const fuelTo15600_raw = LIM_15600 - wb.opW;
-  const fuelTo16000_raw = LIM_16000 - wb.opW;
+  // Raw weight headroom (how much fuel before hitting the AUW limit)
+  const fuelTo15600_raw = Math.max(0, LIM_15600 - wb.opW);
+  const fuelTo16000_raw = Math.max(0, LIM_16000 - wb.opW);
 
-  const fuelTo15600 = Math.max(0, roundKg(fuelTo15600_raw));
-  const MAX_FUEL_KG = 4152; // hard physical cap (830.4 × 5 tanks)
-const fuelTo16000 = Math.min(
-  MAX_FUEL_KG,
-  Math.max(0, roundKg(fuelTo16000_raw))
-);
+  // Apply physical fuel-capacity cap — never suggest more than the tanks hold
+  const fuelTo15600 = Math.min(MAX_FUEL_KG, roundKg(fuelTo15600_raw));
+  const fuelTo16000 = Math.min(MAX_FUEL_KG, roundKg(fuelTo16000_raw));
+
+  // Which limit is binding? Tank capacity or AUW?
+  const limiter15600 = (roundKg(fuelTo15600_raw) >= MAX_FUEL_KG) ? "capacity" : "weight";
+  const limiter16000 = (roundKg(fuelTo16000_raw) >= MAX_FUEL_KG) ? "capacity" : "weight";
+
+  const limiterSub = (which, lim) =>
+    which === "capacity"
+      ? `Max tank capacity (${MAX_FUEL_KG} kg) · AUW headroom would allow more`
+      : `${lim.toLocaleString()} − Operating (${roundKg(wb.opW)} kg)`;
 
   // Briefing boxes: fuel limits based on Operating Weight
   const fuelBriefEl = document.getElementById("fuelBriefKpi");
@@ -1422,12 +1437,12 @@ const fuelTo16000 = Math.min(
         <div class="box">
           <div class="t">Fuel to 15,600</div>
           <div class="v">${fuelTo15600} kg</div>
-          <div class="s mono">15,600 − Operating (${roundKg(wb.opW)} kg)</div>
+          <div class="s mono">${limiterSub(limiter15600, LIM_15600)}</div>
         </div>
         <div class="box">
           <div class="t">Fuel to 16,000</div>
           <div class="v">${fuelTo16000} kg</div>
-          <div class="s mono">16,000 − Operating (${roundKg(wb.opW)} kg)</div>
+          <div class="s mono">${limiterSub(limiter16000, LIM_16000)}</div>
         </div>
       </div>
     `;

@@ -136,6 +136,10 @@ const AC_RAMP = {
 // Arms (mm) for each fuel tank.
 // Tank IDs must match the keys used in fuelStages below.
 
+// Maximum fuel capacity — hard physical limit of the tanks.
+// The aircraft cannot hold more than this regardless of AUW headroom.
+const AC_MAX_FUEL_KG = 4152;  // 830.4 kg × 5 tanks
+
 const AC_FUEL_TANK_ARMS = {
   T1: 10884,  // Bay 6 main
   T2:  7375,  // Bay 3 main
@@ -495,6 +499,7 @@ const AC = {
   ramp:          AC_RAMP,
   fuelTankArms:  AC_FUEL_TANK_ARMS,
   fuelStages:    AC_FUEL_STAGES,
+  maxFuelKg:     AC_MAX_FUEL_KG,
   crewSeats:     AC_CREW_SEATS,
   paxSeats:      AC_PAX_SEATS,
   stowage:       AC_STOWAGE,
