@@ -279,7 +279,7 @@ class PDFContext {
     // Subtitle
     this.setFont("normal", 9);
     this.setColor(...this.C_LIGHT);
-    this.text("CH-149 Cormorant · 19 Wing Comox · 615 Squadron", this.marginL, 19);
+    this.text("CH-149 - 615 Cormorant", this.marginL, 19);
 
     // Date/time top-right
     const now     = new Date();
@@ -871,7 +871,7 @@ class PDFContext {
     this.y += 4;
     this.setFont("italic", 7);
     this.setColor(...this.C_MED);
-    const footerText = `CH-149 · 615 Sqn · ${this.tail} · Generated ${new Date().toLocaleString("en-CA")} · This document is a planning tool and does not replace certified aircraft documentation.`;
+    const footerText = `CH-149 - 615 · Tail ${this.tail} · Generated ${new Date().toLocaleString("en-CA")} · This document is a planning tool and does not replace certified aircraft documentation.`;
     this.text(footerText, this.pageW / 2, this.y, { align: "center" });
   }
 }
