@@ -160,6 +160,61 @@ function computeFuelTotals(s){
   return {w: roundKg(w), m};
 }
 
+/* =========================
+   BURN TRACK
+   Computes a sequence of {w, cg, label, fuel} points showing
+   how AUW and CG evolve as fuel burns from departure down to
+   landing weight. Uses the same fuel distribution solver so
+   the CG shift matches how the tanks actually drain.
+
+   Returns: array of points, departure first → landing last.
+   ========================= */
+
+function computeBurnTrack(tail){
+  const s = STORE.sessions[tail];
+  if (!s) return [];
+
+  // Operating state doesn't change during burn — capture once.
+  const wb0     = computeWB(tail);
+  const opW     = wb0.opW;
+  const opM     = opW * wb0.opCG;
+
+  const fuelDep  = roundKg(s.fuel?.total ?? 0);
+  const fuelLdg  = roundKg(Math.max(0, Math.min(s.fuel?.landing ?? 300, fuelDep)));
+
+  // Helper: compute {w, cg} for a given total fuel amount
+  const pointAtFuel = (fuelKg) => {
+    const tanks = solveFuelTanksFromTotal(fuelKg);
+    let fw = 0, fm = 0;
+    for (const k of Object.keys(tanks)){
+      const kg  = tanks[k] || 0;
+      const arm = AC.fuelTankArms[k];
+      fw += kg;
+      fm += kg * arm;
+    }
+    const w  = roundKg(opW + fw);
+    const m  = opM + fm;
+    const cg = roundMm(cgFromMoment(w, m) || 0);
+    return { w, cg, fuel: roundKg(fw) };
+  };
+
+  // Sample the burn curve. We step every ~50 kg for a smooth line,
+  // and explicitly include the departure and landing points.
+  const track = [];
+  const step  = 50;
+
+  track.push({ ...pointAtFuel(fuelDep), label: "Departure" });
+
+  for (let f = fuelDep - step; f > fuelLdg; f -= step){
+    track.push({ ...pointAtFuel(f), label: null });
+  }
+
+  track.push({ ...pointAtFuel(fuelLdg), label: "Landing" });
+
+  return track;
+}
+
+
 function cgBand(cg){
   if (cg == null) return "—";
   if (cg < AC.envelope.cgBands.fwdMax) return "FWD";

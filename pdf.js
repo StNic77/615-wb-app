@@ -574,6 +574,45 @@ class PDFContext {
     this.kvRow("In Alt Envelope",      wb.flags.inAlt    ? "YES" : "NO");
     this.kvRow("AUW Check",            auwStatus,        auwHl);
 
+    // ── Landing condition + burn track check ──
+    if (typeof computeBurnTrack === "function") {
+      const track = computeBurnTrack(this.tail);
+      if (track.length) {
+        const land = track[track.length - 1];
+
+        const inPoly = (pt, poly) => {
+          let inside = false;
+          for (let i=0, j=poly.length-1; i<poly.length; j=i++){
+            const xi = poly[i].cg, yi = poly[i].w;
+            const xj = poly[j].cg, yj = poly[j].w;
+            const hit = ((yi > pt.w) !== (yj > pt.w)) &&
+              (pt.cg < (xj-xi)*(pt.w-yi)/((yj-yi) || 1e-9) + xi);
+            if (hit) inside = !inside;
+          }
+          return inside;
+        };
+        const inEnv = (pt) => inPoly(pt, AC.envelope.envMain) || inPoly(pt, AC.envelope.envAlt);
+
+        const landOk  = inEnv(land);
+        const trackOk = track.every(p => inEnv(p));
+
+        this.spacer(2);
+        this.setFont("bold", 8);
+        this.setColor(...this.C_DARK);
+        this.text("Landing Condition:", this.marginL, this.y);
+        this.y += 5;
+        this.kvRow("Fuel at landing",   `${land.fuel} kg`);
+        this.kvRow("Landing AUW",       `${land.w} kg`);
+        this.kvRow("Landing CG",        `${land.cg} mm`);
+        this.kvRow("Landing Envelope",
+                   landOk ? "WITHIN" : "OUT",
+                   landOk ? "good" : "bad");
+        this.kvRow("Burn Track",
+                   trackOk ? "ALL IN ENVELOPE" : "EXCEEDS ENVELOPE",
+                   trackOk ? "good" : "bad");
+      }
+    }
+
     if (s.certify?.mcdu) {
       this.spacer(2);
       this.setFont("bold", 8);
@@ -682,7 +721,60 @@ class PDFContext {
       doc.fillStroke();
     }
 
-    // Plot the aircraft point
+    // ── Burn track (departure → landing) ──────────────────────
+    // Uses computeBurnTrack() so the curve reflects actual tank
+    // distribution at each fuel level, not a straight line.
+    const track = (typeof computeBurnTrack === "function")
+      ? computeBurnTrack(this.tail)
+      : [];
+
+    // Point-in-polygon helper for envelope check
+    const inPoly = (pt, poly) => {
+      let inside = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const xi = poly[i].cg, yi = poly[i].w;
+        const xj = poly[j].cg, yj = poly[j].w;
+        const intersect = ((yi > pt.w) !== (yj > pt.w)) &&
+          (pt.cg < (xj - xi) * (pt.w - yi) / ((yj - yi) || 1e-9) + xi);
+        if (intersect) inside = !inside;
+      }
+      return inside;
+    };
+
+    const ptInEnvelope = (pt) =>
+      inPoly(pt, AC.envelope.envMain) || inPoly(pt, AC.envelope.envAlt);
+
+    if (track.length > 1) {
+      doc.setLineWidth(0.8);
+      for (let i = 1; i < track.length; i++) {
+        const a = track[i - 1];
+        const b = track[i];
+        const ok = ptInEnvelope(a) && ptInEnvelope(b);
+        const col = ok ? this.C_GOOD : this.C_BAD;
+        doc.setDrawColor(...col);
+        doc.line(toX(a.cg), toY(a.w), toX(b.cg), toY(b.w));
+      }
+    }
+
+    // ── Landing point ──
+    const landPt = track.length ? track[track.length - 1] : null;
+    if (landPt) {
+      const lx = toX(landPt.cg);
+      const ly = toY(landPt.w);
+      const landOk = ptInEnvelope(landPt);
+      const landColor = landOk ? [80, 140, 220] : this.C_BAD;
+
+      doc.setFillColor(...landColor);
+      doc.setDrawColor(...landColor);
+      doc.circle(lx, ly, 2, "F");
+
+      this.setFont("bold", 6.5);
+      this.setColor(...landColor);
+      doc.text("LANDING", lx + 3, ly - 1);
+      doc.text(`${landPt.w} kg / ${landPt.cg} mm`, lx + 3, ly + 3);
+    }
+
+    // Plot the aircraft point (DEPARTURE)
     const ptX = toX(wb.auwCG);
     const ptY = toY(wb.auw);
     const ptColor = wb.flags.envOk ? this.C_GOOD : this.C_BAD;
@@ -697,11 +789,22 @@ class PDFContext {
     doc.line(ptX - 5, ptY, ptX + 5, ptY);
     doc.line(ptX, ptY - 5, ptX, ptY + 5);
 
-    // Point label
+    // Departure label
     this.setFont("bold", 7);
     this.setColor(...ptColor);
-    doc.text(`AUW ${wb.auw} kg`, ptX + 3, ptY - 2);
-    doc.text(`CG ${wb.auwCG} mm`, ptX + 3, ptY + 4);
+    doc.text("DEPARTURE", ptX + 3, ptY - 2);
+    this.setFont("normal", 6.5);
+    doc.text(`${wb.auw} kg / ${wb.auwCG} mm`, ptX + 3, ptY + 3);
+
+    // ── Burn track legend (bottom-left of plot) ──
+    const legX = plotX + pad.l + 2;
+    const legY = plotY + plotH - 6;
+    this.setFont("normal", 6);
+    this.setColor(...this.C_MED);
+    doc.setDrawColor(...this.C_GOOD);
+    doc.setLineWidth(0.8);
+    doc.line(legX, legY, legX + 6, legY);
+    doc.text("Burn track (green = in envelope, red = out)", legX + 8, legY + 1.5);
 
     // Axis labels
     this.setFont("bold", 7);
