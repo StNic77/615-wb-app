@@ -109,6 +109,43 @@ function makeNewSession(tail, isPlaceholder){
    UI TAB SYSTEM
    ========================= */
 
+/* =========================
+   THEME TOGGLE (light / dark)
+   Persists choice in localStorage.
+   ========================= */
+
+function initThemeToggle() {
+  const btn  = document.getElementById("themeToggle");
+  const icon = document.getElementById("themeToggleIcon");
+  if (!btn || !icon) return;
+
+  const applyTheme = (theme) => {
+    if (theme === "light") {
+      document.body.classList.add("theme-light");
+      icon.textContent = "☾";
+      btn.title = "Switch to dark theme";
+    } else {
+      document.body.classList.remove("theme-light");
+      icon.textContent = "☀";
+      btn.title = "Switch to light theme";
+    }
+  };
+
+  // Load saved preference (default: dark)
+  let theme = "dark";
+  try { theme = localStorage.getItem("wb_theme") || "dark"; } catch (e) {}
+  applyTheme(theme);
+
+  btn.onclick = () => {
+    theme = (theme === "light") ? "dark" : "light";
+    try { localStorage.setItem("wb_theme", theme); } catch (e) {}
+    applyTheme(theme);
+    // Re-render so canvas-drawn elements (envelope text/grid) pick up new colors
+    if (typeof render === "function") render();
+  };
+}
+
+
 const TABS = [
   {id:"HOME", label:"Home"},
   {id:"ACCEPT", label:"Accept"},
@@ -2521,7 +2558,15 @@ function drawEnvelope(canvasEl, notesEl){
   // Optional notes target (defaults to existing envNotes)
   const notesTarget = notesEl || document.getElementById("envNotes");
 
-
+  // Theme-aware colors (light theme uses darker text, darker grid)
+  const isLight = document.body.classList.contains("theme-light");
+  const C = {
+    axisTitle: isLight ? "rgba(20,30,50,.90)"  : "rgba(232,238,252,.85)",
+    tick:      isLight ? "rgba(60,70,95,.85)"   : "rgba(232,238,252,.70)",
+    grid:      isLight ? "rgba(30,40,70,.10)"   : "rgba(255,255,255,.06)",
+    pointLbl:  isLight ? "rgba(20,30,50,.95)"  : "rgba(232,238,252,.92)",
+    landLbl:   isLight ? "rgba(20,30,50,.90)"  : "rgba(232,238,252,.85)"
+  };
 
   // handle device pixel ratio for crisp lines
   const dpr = window.devicePixelRatio || 1;
@@ -2561,7 +2606,7 @@ function drawEnvelope(canvasEl, notesEl){
   // background grid
   ctx.clearRect(0,0,W,H);
   ctx.lineWidth = 1;
-  ctx.strokeStyle = "rgba(255,255,255,.06)";
+  ctx.strokeStyle = C.grid;
   for (let i=0;i<=6;i++){
     const gx = pad.l + (i/6)*plotW;
     ctx.beginPath(); ctx.moveTo(gx, pad.t); ctx.lineTo(gx, pad.t+plotH); ctx.stroke();
@@ -2572,7 +2617,7 @@ function drawEnvelope(canvasEl, notesEl){
   }
 
     // axes labels + reference values (tick labels)
-  ctx.fillStyle = "rgba(232,238,252,.85)";
+  ctx.fillStyle = C.axisTitle;
   ctx.font = "12px " + getComputedStyle(document.body).fontFamily;
 
   // axis titles
@@ -2584,7 +2629,7 @@ function drawEnvelope(canvasEl, notesEl){
   ctx.restore();
 
   // tick labels (match the 0..6 grid)
-  ctx.fillStyle = "rgba(232,238,252,.70)";
+  ctx.fillStyle = C.tick;
   ctx.font = "11px " + getComputedStyle(document.body).fontFamily;
 
   // X ticks: 7800..8600
@@ -2720,7 +2765,7 @@ function drawEnvelope(canvasEl, notesEl){
     ctx.beginPath(); ctx.arc(lx, ly, 5, 0, Math.PI*2); ctx.fill();
 
     // small label
-    ctx.fillStyle = "rgba(232,238,252,.85)";
+    ctx.fillStyle = C.landLbl;
     ctx.font = "11px " + getComputedStyle(document.body).fontFamily;
     ctx.fillText("LAND", lx + 8, ly + 4);
   }
@@ -2732,7 +2777,7 @@ function drawEnvelope(canvasEl, notesEl){
   ctx.beginPath(); ctx.arc(cx,cy,5,0,Math.PI*2); ctx.fill();
 
   // annotate
-  ctx.fillStyle = "rgba(232,238,252,.92)";
+  ctx.fillStyle = C.pointLbl;
   ctx.font = "12px " + getComputedStyle(document.body).fontFamily;
   ctx.fillText(`${wb.auw} kg @ ${wb.auwCG} mm (${wb.cgBand})`, cx+10, cy-10);
 
@@ -2785,6 +2830,7 @@ function render(){
 
 initTails();
 buildTabs();
+initThemeToggle();
 render();
 
 // keep envelope responsive
