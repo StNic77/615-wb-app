@@ -386,9 +386,84 @@
   <!-- CERTIFY -->
   <section id="tab_CERTIFY" class="grid hide">
 
+    <!-- ═══ STEP 1: Enter these INTO the MCDU ═══ -->
+    <div class="card certify-step">
+      <div class="certify-step-header">
+        <span class="certify-step-num">1</span>
+        <div>
+          <h2 style="margin:0;">Enter These Values Into the MCDU</h2>
+          <div class="small muted">Type Operating Weight and Distance (CG) into the aircraft MCDU.</div>
+        </div>
+      </div>
+      <div id="mcduInputsExpected" style="margin-top:14px;"></div>
+      <div style="margin-top:10px;">
+        <div id="mcduAuwCgReplica"></div>
+      </div>
+    </div>
+
+    <!-- ═══ STEP 2: Read back FROM the MCDU ═══ -->
+    <div class="card certify-step">
+      <div class="certify-step-header">
+        <span class="certify-step-num">2</span>
+        <div>
+          <h2 style="margin:0;">Read Back Values From the MCDU</h2>
+          <div class="small muted">Enter exactly what the aircraft MCDU now displays.</div>
+        </div>
+      </div>
+      <div class="twoCol" style="margin-top:14px;">
+        <div>
+          <div class="lbl">MCDU AUW (kg)</div>
+          <input id="mcduAUW" inputmode="numeric" placeholder="as shown on MCDU"/>
+        </div>
+        <div>
+          <div class="lbl">MCDU CG (mm)</div>
+          <input id="mcduCG" inputmode="numeric" placeholder="as shown on MCDU"/>
+        </div>
+        <div>
+          <div class="lbl">MCDU Fuel total (kg)</div>
+          <input id="mcduFuel" inputmode="numeric" placeholder="as shown on MCDU"/>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══ STEP 3: Cross-check ═══ -->
+    <div class="card certify-step">
+      <div class="certify-step-header">
+        <span class="certify-step-num">3</span>
+        <div>
+          <h2 style="margin:0;">Cross-Check</h2>
+          <div class="small muted">Tolerances: AUW ±100 kg · CG ±20 mm · Fuel ±100 kg.</div>
+        </div>
+      </div>
+      <div id="certifyCrossCheck" style="margin-top:14px;"></div>
+    </div>
+
+    <!-- ═══ STEP 4: Sign & certify ═══ -->
+    <div class="card certify-step">
+      <div class="certify-step-header">
+        <span class="certify-step-num">4</span>
+        <div>
+          <h2 style="margin:0;">Sign &amp; Certify</h2>
+          <div class="small muted">Enter your Service #, then certify. Download PDF when complete.</div>
+        </div>
+      </div>
+      <div style="margin-top:14px; max-width:360px;">
+        <div class="lbl">FE Service #</div>
+        <input id="certSvc" class="mono" placeholder="e.g., X12345678"/>
+      </div>
+      <div class="hr"></div>
+      <div class="row">
+        <button class="btn good" id="btnCertify">CERTIFY</button>
+        <button class="btn warn" id="btnReturnToAvailableCert">Return to Available</button>
+        <button class="btn" id="btnPrintPDF" onclick="generateWBReport()" style="background:rgba(98,168,255,.18);border-color:rgba(98,168,255,.55);">&#8659; Save W&amp;B PDF</button>
+      </div>
+      <div class="small" id="certMsg" style="margin-top:8px;"></div>
+    </div>
+
+    <!-- Envelope (reference, full width at bottom) -->
     <div class="card" style="padding:14px;">
       <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;">
-        <h2 style="margin:0;">Envelope & Predicted CG Path <small>(full width)</small></h2>
+        <h2 style="margin:0;">Envelope &amp; Predicted CG Path <small>(reference)</small></h2>
         <button class="btn small" id="envToggleCertify" type="button">Collapse</button>
       </div>
       <div id="envWrapCertify" style="margin-top:10px;">
@@ -397,59 +472,12 @@
       </div>
     </div>
 
-    <div class="card">
-      <h2>Certify <small>Cross-check vs MCDU outputs</small></h2>
-
-      <div class="callout">
-        For demo: enter MCDU AUW/CG and fuel total you see in aircraft.
-        Tolerances: <b>±100 kg</b> and <b>±20 mm</b>. Fuel tolerance: <b>±100 kg</b>.
-      </div>
-      <div class="hr"></div>
-
+    <!-- Hidden KPI holder + breakdown (kept for backward compatibility with existing logic) -->
+    <div class="hide">
       <div class="kpi" id="certKpi"></div>
-<div id="mcduAuwCgReplica"></div>
-      <div class="hr"></div>
-
-      <div class="twoCol">
-        <div class="card" style="box-shadow:none; background:rgba(0,0,0,.15);">
-          <h2 style="margin-top:0">Enter MCDU values</h2>
-          <div class="twoCol">
-            <div>
-              <div class="lbl">MCDU AUW (kg)</div>
-              <input id="mcduAUW" inputmode="numeric" placeholder="e.g., 13700"/>
-            </div>
-            <div>
-              <div class="lbl">MCDU CG (mm)</div>
-              <input id="mcduCG" inputmode="numeric" placeholder="e.g., 8200"/>
-            </div>
-            <div>
-              <div class="lbl">MCDU Fuel total (kg)</div>
-              <input id="mcduFuel" inputmode="numeric" placeholder="e.g., 2200"/>
-            </div>
-            <div>
-              <div class="lbl">Service # (signature)</div>
-              <input id="certSvc" class="mono" placeholder="e.g., X12345678"/>
-            </div>
-          </div>
-          <div class="hr"></div>
-          <div class="row">
-            <button class="btn good" id="btnCertify">CERTIFY</button>
-            <button class="btn warn" id="btnReturnToAvailableCert">Return to Available</button>
-            <button class="btn" id="btnPrintPDF" onclick="generateWBReport()" style="background:rgba(98,168,255,.18);border-color:rgba(98,168,255,.55);">&#8659; Save W&amp;B PDF</button>
-          </div>
-          <div class="small" id="certMsg" style="margin-top:8px;"></div>
-        </div>
-
-        <div class="card" style="box-shadow:none; background:rgba(0,0,0,.15);">
-          <h2 style="margin-top:0">MCDU-style breakdown (demo)</h2>
-          <div id="mcduBreakdown" class="small"></div>
-          <div class="hr"></div>
-          <div class="small">
-            You said you’ll provide the exact AUW CG screen layout later — we’ll replace this block with that format when ready.
-          </div>
-        </div>
-      </div>
+      <div id="mcduBreakdown"></div>
     </div>
+
   </section>
 
   <!-- EDITOR (placeholder) -->
@@ -458,7 +486,7 @@
   </section>
 </main>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="jspdf.umd.min.js"></script>
 <script src="config.js"></script>
 <script src="mcdu.js"></script>
 <script src="compute.js"></script>
