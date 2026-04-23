@@ -156,6 +156,45 @@ class PDFContext {
     this.y += 10;
   }
 
+  // Colored alert banner — level = "good" | "warn" | "bad"
+  // Used to draw attention to pass/fail or discrepancy conditions.
+  alertBanner(level, title, detail) {
+    this.checkPageBreak(14);
+    const bgMap = {
+      good: [220, 245, 225],   // light green tint
+      warn: [255, 245, 215],   // light amber tint
+      bad:  [250, 220, 220]    // light red tint
+    };
+    const textMap = {
+      good: this.C_GOOD,
+      warn: this.C_WARN,
+      bad:  this.C_BAD
+    };
+    const bg    = bgMap[level]   || bgMap.warn;
+    const txtC  = textMap[level] || textMap.warn;
+    const h     = detail ? 12 : 8;
+
+    // Bar
+    this.doc.setFillColor(...bg);
+    this.doc.rect(this.marginL, this.y, this.contentW, h, "F");
+    // Left accent stripe
+    this.doc.setFillColor(...txtC);
+    this.doc.rect(this.marginL, this.y, 2, h, "F");
+
+    this.setFont("bold", 9);
+    this.setColor(...txtC);
+    this.text(title, this.marginL + 5, this.y + 5.5);
+
+    if (detail) {
+      this.setFont("normal", 8);
+      this.setColor(...this.C_DARK);
+      this.text(detail, this.marginL + 5, this.y + 10);
+    }
+
+    this.setColor(0, 0, 0);
+    this.y += h + 3;
+  }
+
   // Two-column key/value row
   kvRow(label, value, highlight = null) {
     this.checkPageBreak(7);
@@ -383,13 +422,15 @@ class PDFContext {
     const s = this.s;
     this.sectionHeader("3 · Mission Equipment");
 
-    const meRows = Object.entries(AC.missionEquip)
-      .filter(([k]) => s.mission[k])
-      .map(([, it]) => [
+    const meRows = Object.keys(AC.missionEquip)
+      .filter(k => s.mission[k])
+      .map(k => getMissionItem(k))
+      .filter(it => it)
+      .map(it => [
         it.name,
         `${it.w} kg`,
         `${it.arm} mm`,
-        it.stow ?? "—"
+        it.stow
       ]);
 
     if (meRows.length === 0) {
@@ -549,6 +590,53 @@ class PDFContext {
     const s   = this.s;
     this.sectionHeader("7 · Weight & Balance Summary");
 
+    // ── Calculated vs MCDU discrepancy check ────────────────────
+    // Tolerances match the certify-gate thresholds in app.js.
+    const TOL = { auw: 100, cg: 20, fuel: 100 };
+    const mcdu = s.certify?.mcdu || null;
+
+    const discrepancy = mcdu ? {
+      auw:  { calc: wb.auw,       mcdu: +mcdu.auw,  tol: TOL.auw,  unit: "kg" },
+      cg:   { calc: wb.auwCG,     mcdu: +mcdu.cg,   tol: TOL.cg,   unit: "mm" },
+      fuel: { calc: wb.fuelTotal, mcdu: +mcdu.fuel, tol: TOL.fuel, unit: "kg" }
+    } : null;
+
+    const statusForRow = (row) => {
+      const diff = Math.abs(row.calc - row.mcdu);
+      if (diff === 0)       return { level: "good", word: "MATCH" };
+      if (diff <= row.tol)  return { level: "warn", word: "WITHIN TOL" };
+      return                       { level: "bad",  word: "EXCEEDS TOL" };
+    };
+
+    if (discrepancy) {
+      const auwS  = statusForRow(discrepancy.auw);
+      const cgS   = statusForRow(discrepancy.cg);
+      const fuelS = statusForRow(discrepancy.fuel);
+
+      // Roll up to a single worst-case level for the banner
+      const worst =
+        (auwS.level === "bad" || cgS.level === "bad" || fuelS.level === "bad")    ? "bad"  :
+        (auwS.level === "warn"|| cgS.level === "warn"|| fuelS.level === "warn")   ? "warn" :
+                                                                                    "good";
+
+      if (worst === "good") {
+        this.alertBanner("good", "MCDU cross-check: all values match calculated", null);
+      } else if (worst === "warn") {
+        this.alertBanner(
+          "warn",
+          "MCDU cross-check: minor discrepancies within tolerance",
+          `Tolerances — AUW ±${TOL.auw} kg · CG ±${TOL.cg} mm · Fuel ±${TOL.fuel} kg. Review table below.`
+        );
+      } else {
+        this.alertBanner(
+          "bad",
+          "MCDU CROSS-CHECK: DISCREPANCY EXCEEDS TOLERANCE",
+          `One or more values differ beyond the certification tolerance. Review table below.`
+        );
+      }
+      this.spacer(1);
+    }
+
     const envStatus  = wb.flags.envOk ? "WITHIN ENVELOPE" : "OUT OF ENVELOPE";
     const envHl      = wb.flags.envOk ? "good" : "bad";
     const cgStatus   = wb.flags.hardCgOk ? "PASS" : "FAIL";
@@ -613,15 +701,107 @@ class PDFContext {
       }
     }
 
-    if (s.certify?.mcdu) {
+    if (discrepancy) {
       this.spacer(2);
       this.setFont("bold", 8);
       this.setColor(...this.C_DARK);
-      this.text("MCDU Cross-Check Values:", this.marginL, this.y);
+      this.text("Calculated vs MCDU Cross-Check:", this.marginL, this.y);
       this.y += 5;
-      this.kvRow("MCDU AUW",  `${s.certify.mcdu.auw} kg`);
-      this.kvRow("MCDU CG",   `${s.certify.mcdu.cg} mm`);
-      this.kvRow("MCDU Fuel", `${s.certify.mcdu.fuel} kg`);
+
+      const rows = [
+        { label: "AUW",  ...discrepancy.auw,  status: statusForRow(discrepancy.auw)  },
+        { label: "CG",   ...discrepancy.cg,   status: statusForRow(discrepancy.cg)   },
+        { label: "Fuel", ...discrepancy.fuel, status: statusForRow(discrepancy.fuel) }
+      ];
+
+      // Column layout (4 cols: Parameter | Calculated | MCDU | Difference | Status)
+      const x0    = this.marginL;
+      const hdrH  = 7;
+      const rowH  = 6.5;
+      const cols  = [
+        { key: "label",   w: 28 },
+        { key: "calc",    w: 38, align: "right", unit: true },
+        { key: "mcdu",    w: 38, align: "right", unit: true },
+        { key: "diff",    w: 38, align: "right" },
+        { key: "status",  w: 46 }
+      ];
+
+      // Header
+      this.checkPageBreak(hdrH + rowH * 3 + 4);
+      this.doc.setFillColor(...this.C_MED);
+      this.doc.rect(x0, this.y, this.contentW, hdrH, "F");
+      this.setFont("bold", 7.5);
+      this.setColor(...this.C_WHITE);
+      const headers = ["Parameter", "Calculated", "MCDU", "Difference", "Status"];
+      let cx = x0;
+      headers.forEach((h, i) => {
+        const col = cols[i];
+        const tx  = col.align === "right" ? cx + col.w - 2 : cx + 2;
+        this.text(h, tx, this.y + 5, col.align === "right" ? { align: "right" } : {});
+        cx += col.w;
+      });
+      this.y += hdrH;
+
+      // Data rows — each colored by its own status
+      rows.forEach(r => {
+        const tintMap = {
+          good: [235, 248, 238],
+          warn: [254, 246, 220],
+          bad:  [250, 228, 228]
+        };
+        const txtMap = {
+          good: this.C_GOOD,
+          warn: this.C_WARN,
+          bad:  this.C_BAD
+        };
+
+        const diff     = r.calc - r.mcdu;          // signed
+        const diffStr  = (diff > 0 ? "+" : "") + diff + " " + r.unit;
+        const calcStr  = r.calc + " " + r.unit;
+        const mcduStr  = r.mcdu + " " + r.unit;
+
+        // Row background
+        this.doc.setFillColor(...tintMap[r.status.level]);
+        this.doc.rect(x0, this.y, this.contentW, rowH, "F");
+
+        // Left accent stripe
+        this.doc.setFillColor(...txtMap[r.status.level]);
+        this.doc.rect(x0, this.y, 1.5, rowH, "F");
+
+        // Row text
+        this.setFont("bold", 7.5);
+        this.setColor(...this.C_DARK);
+        this.text(r.label, x0 + 3, this.y + 4.5);
+
+        this.setFont("normal", 7.5);
+        this.text(calcStr, x0 + cols[0].w + cols[1].w - 2, this.y + 4.5, { align: "right" });
+        this.text(mcduStr, x0 + cols[0].w + cols[1].w + cols[2].w - 2, this.y + 4.5, { align: "right" });
+
+        // Difference in status color + bold if exceeds tol
+        this.setFont(r.status.level === "bad" ? "bold" : "normal", 7.5);
+        this.setColor(...txtMap[r.status.level]);
+        this.text(diffStr, x0 + cols[0].w + cols[1].w + cols[2].w + cols[3].w - 2, this.y + 4.5, { align: "right" });
+
+        // Status label
+        this.setFont("bold", 7.5);
+        this.setColor(...txtMap[r.status.level]);
+        this.text(r.status.word, x0 + cols[0].w + cols[1].w + cols[2].w + cols[3].w + 2, this.y + 4.5);
+
+        this.setColor(0, 0, 0);
+        this.y += rowH;
+      });
+
+      this.hRule(this.y);
+      this.y += 4;
+
+      this.setFont("italic", 7);
+      this.setColor(...this.C_MED);
+      this.text(
+        `Tolerances: AUW ±${TOL.auw} kg · CG ±${TOL.cg} mm · Fuel ±${TOL.fuel} kg`,
+        this.marginL, this.y
+      );
+      this.setColor(0, 0, 0);
+      this.y += 5;
     }
     this.spacer();
   }
