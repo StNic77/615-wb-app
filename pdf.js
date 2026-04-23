@@ -177,42 +177,65 @@ class PDFContext {
     this.y += 5.5;
   }
 
-  // Table: headers + rows
+  // Table: headers + rows with word-wrapping cells
+  // Row height grows to fit the tallest wrapped cell in that row.
   table(headers, rows, colWidths) {
-    const rowH  = 6;
-    const hdrH  = 7;
-    const x0    = this.marginL;
+    const hdrH      = 7;
+    const lineH     = 3.4;    // line height within a wrapped cell
+    const cellPadY  = 1.6;    // top/bottom padding inside a cell
+    const cellPadX  = 2;      // left padding
+    const x0        = this.marginL;
 
-    this.checkPageBreak(hdrH + rowH);
+    this.checkPageBreak(hdrH + 10);
 
-    // Header row
+    // ── Header row ───────────────────────────────────────────
     this.doc.setFillColor(...this.C_MED);
     this.doc.rect(x0, this.y, this.contentW, hdrH, "F");
     this.setFont("bold", 7.5);
     this.setColor(...this.C_WHITE);
-    let cx = x0 + 2;
+    let cx = x0 + cellPadX;
     for (let i = 0; i < headers.length; i++) {
       this.text(headers[i], cx, this.y + 5);
       cx += colWidths[i];
     }
     this.y += hdrH;
 
-    // Data rows
+    // ── Data rows (word-wrap aware) ──────────────────────────
+    this.setFont("normal", 7.5);
+
     rows.forEach((row, ri) => {
+      // Pre-wrap each cell and find the tallest
+      const wrapped = row.map((cell, i) => {
+        const text = String(cell ?? "");
+        const maxWidth = colWidths[i] - (cellPadX * 2);
+        return this.doc.splitTextToSize(text, maxWidth);
+      });
+
+      const maxLines = Math.max(1, ...wrapped.map(w => w.length));
+      const rowH     = (maxLines * lineH) + (cellPadY * 2);
+
+      // Page break if this row would overflow
       this.checkPageBreak(rowH + 2);
+
+      // Zebra background
       if (ri % 2 === 0) {
         this.doc.setFillColor(235, 238, 248);
-        this.doc.rect(x0, this.y - 1, this.contentW, rowH, "F");
+        this.doc.rect(x0, this.y, this.contentW, rowH, "F");
       }
+
+      // Render each cell's lines
       this.setFont("normal", 7.5);
       this.setColor(...this.C_DARK);
-      cx = x0 + 2;
+      cx = x0 + cellPadX;
       for (let i = 0; i < row.length; i++) {
-        const cell = String(row[i] ?? "");
-        // Truncate if too wide (rough guard)
-        this.text(cell, cx, this.y + 4);
+        const lines = wrapped[i];
+        for (let ln = 0; ln < lines.length; ln++) {
+          const yLine = this.y + cellPadY + ((ln + 1) * lineH) - 1;
+          this.text(lines[ln], cx, yLine);
+        }
         cx += colWidths[i];
       }
+
       this.y += rowH;
     });
 
@@ -375,7 +398,7 @@ class PDFContext {
       this.table(
         ["Item", "Weight", "Arm", "Stowage"],
         meRows,
-        [80, 22, 25, 61]
+        [92, 18, 20, 58]
       );
     }
     this.spacer();
