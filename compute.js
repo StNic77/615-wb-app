@@ -123,7 +123,7 @@ function computeCargoTotals(s){
 
 function solveFuelTanksFromTotal(totalKg){
   // Fill from stages, applying positive deltas only, sequentially, partially if needed.
-  // This is a distribution solver for a total fuel (good for demo).
+  // This is a distribution solver for a total fuel amount.
   // Any negative stages are ignored for fill distribution; they’re transfer dynamics not a fill bucket.
   const tanks = {T1:0,T2:0,T3:0,T4:0,T5:0};
   let remaining = Math.max(0, totalKg);

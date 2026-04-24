@@ -274,7 +274,7 @@ if (accSvcEl) accSvcEl.value = (s && s.accepted && (s.accepted.by || "")) || "";
     }
     // forced return + assign
     s.returnedAt = new Date().toISOString();
-    // keep audit? For demo we just store returnedAt; could store reason too.
+    // audit record: returnedAt timestamp (extend here to capture reason in future)
   }
 
   STORE.selectedTail = tail;
@@ -2594,7 +2594,7 @@ if (certMsgEl){
     <div class="box"><div class="t">Envelope</div><div class="v"><span class="badge ${statusCls}">${status}</span></div><div class="s">Main:${wb.flags.inMain?"Y":"N"} Alt:${wb.flags.inAlt?"Y":"N"} · CG:${wb.flags.hardCgOk?"Y":"N"}</div></div>
   `;
 
-  // breakdown block (demo)
+  // breakdown block
   const b = document.getElementById("mcduBreakdown");
   b.innerHTML = `
     <div><b>OPERATING WEIGHT</b>: <span class="mono">${wb.opW}</span> kg</div>
@@ -2645,21 +2645,21 @@ if (certMsgEl){
       const dW = Math.abs(mcduAUW - wb.auw);
       if (dW > tolW){ within=false; msg.push(`AUW mismatch: Δ${dW} kg > ${tolW}`); }
     } else {
-      within=false; msg.push("Enter MCDU AUW for comparison (demo requirement).");
+      within=false; msg.push("Enter MCDU AUW for comparison.");
     }
 
     if (!isNaN(mcduCG) && mcduCG>0){
       const dC = Math.abs(mcduCG - wb.auwCG);
       if (dC > tolCG){ within=false; msg.push(`CG mismatch: Δ${dC} mm > ${tolCG}`); }
     } else {
-      within=false; msg.push("Enter MCDU CG for comparison (demo requirement).");
+      within=false; msg.push("Enter MCDU CG for comparison.");
     }
 
     if (!isNaN(mcduFuel) && mcduFuel>=0){
       const dF = Math.abs(mcduFuel - wb.fuelTotal);
       if (dF > tolFuel){ within=false; msg.push(`Fuel mismatch: Δ${dF} kg > ${tolFuel}`); }
     } else {
-      within=false; msg.push("Enter MCDU fuel total for comparison (demo requirement).");
+      within=false; msg.push("Enter MCDU fuel total for comparison.");
     }
 
     if (!within){
