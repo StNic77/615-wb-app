@@ -859,6 +859,45 @@ function renderConfig(){
   document.getElementById("btnPresetCASEVAC").onclick = ()=>{ applyPreset(tail,"CASEVAC"); render(); };
   document.getElementById("btnPresetTRANSPORT").onclick = ()=>{ applyPreset(tail,"TRANSPORT"); render(); };
 
+  // Preset image — shown when a preset is applied, blank otherwise. Collapsible.
+  const imgHost = document.getElementById("presetImageHost");
+  if (imgHost){
+    if (s.preset && AC.presets[s.preset]?.image){
+      const preset = AC.presets[s.preset];
+
+      // Persist collapse state per-session so it remembers the FE's preference
+      s.ui = s.ui || {};
+      if (s.ui.presetImgCollapsed === undefined) s.ui.presetImgCollapsed = false;
+      const collapsed = s.ui.presetImgCollapsed;
+
+      imgHost.innerHTML = `
+        <div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;">
+          <div class="small muted">
+            Configuration: <b>${preset.name}</b>
+          </div>
+          <button class="btn small" id="btnPresetImgToggle" type="button">
+            ${collapsed ? "Expand" : "Collapse"}
+          </button>
+        </div>
+        <div id="presetImageWrap" style="margin-top:10px; ${collapsed ? 'display:none;' : ''}">
+          <img src="${preset.image}"
+               alt="${preset.name} configuration"
+               style="width:100%; max-width:900px; height:auto; border-radius:10px; display:block;">
+        </div>
+      `;
+
+      const btn = document.getElementById("btnPresetImgToggle");
+      if (btn){
+        btn.onclick = () => {
+          s.ui.presetImgCollapsed = !s.ui.presetImgCollapsed;
+          render();
+        };
+      }
+    } else {
+      imgHost.innerHTML = "";
+    }
+  }
+
   // role fit list with toggles (installed/uninstalled)
   const box = document.getElementById("roleFitList");
   box.innerHTML = "";

@@ -379,6 +379,7 @@ const AC_PRESETS = {
   SAR3: {
     name: "SAR-3 Pax",
     notes: "EO/IR + Sensor WS + SAR Cabinet + PTA Cot installed.",
+    image: "images/SAR_3_Pax.png",
     seats: {
       crew: ["C1", "C2", "C3", "C4", "C5", "C6"],
       pax:  ["P1", "P2", "P3"]
@@ -407,6 +408,7 @@ const AC_PRESETS = {
   SAR10: {
     name: "SAR-10 Pax",
     notes: "PTA Cot removed vs SAR-3.",
+    image: "images/SAR_10_Pax.png",
     seats: {
       crew: ["C1", "C2", "C3", "C4", "C5", "C6"],
       pax:  ["P1", "P9", "P10", "P2", "P3", "P17", "P16", "P15", "P12", "P11"]
@@ -435,6 +437,7 @@ const AC_PRESETS = {
   CASEVAC: {
     name: "CASEVAC",
     notes: "Sensor WS removed; SAR cabinet removed; mission gear baseline off.",
+    image: "images/CASEVAC.png",
     seats: {
       crew: ["C1", "C2", "C3", "C4"],
       pax:  ["P2", "P3"]
@@ -459,6 +462,7 @@ const AC_PRESETS = {
   TRANSPORT: {
     name: "Transport",
     notes: "Transport: SAR cabinet removed; Sensor WS removed; EO/IR + TRAKKA stay.",
+    image: "images/Transport.png",
     seats: {
       crew: ["C1", "C2", "C3", "C4"],
       pax:  ["P1", "P2", "P3", "P4", "P5", "P6",
