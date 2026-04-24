@@ -548,10 +548,17 @@ class PDFContext {
       .map((c, i) => [`Cargo ${i+1}`, `${c.arm ?? 0} mm`, `${c.w ?? 0} kg`])
       .filter(r => parseFloat(r[2]) > 0);
 
-    // Zone loads
+    // Zone loads — resolve label + arm from LOAD_ZONES definition
     const zoneRows = (s.zones || [])
       .filter(z => (z?.w ?? 0) > 0)
-      .map(z => [z.label ?? z.id ?? "—", `${z.arm ?? 0} mm`, `${z.w} kg`]);
+      .map(z => {
+        const def = (typeof LOAD_ZONES !== "undefined")
+          ? LOAD_ZONES.find(d => d.id === z.id)
+          : null;
+        const label = def ? def.label : (z.id || "—");
+        const arm   = def ? def.arm   : 0;
+        return [label, `${arm} mm`, `${z.w} kg`];
+      });
 
     if (!bayRows.length && !cargoRows.length && !zoneRows.length) {
       this.note("No additional loads entered in Load Planning.");

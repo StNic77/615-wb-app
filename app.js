@@ -1640,6 +1640,36 @@ function renderEnvelopeHeader(){
    CARGO / BAY RENDER
    ========================= */
 
+/* =========================
+   LOAD ZONES
+   Discrete stowage locations referenced by Load Planning and the PDF.
+   Defined at module scope so pdf.js can read zone labels and arms.
+   arm: mm; max: kg (capacity limit for that zone)
+   ========================= */
+const LOAD_ZONES = [
+  // Mission Equipment — Forward shelves (Port FWD, 3 levels)
+  { id: "FWD_PORT_BTM", label: "PORT FWD Shelf – BOTTOM", arm: 5331, max: 22 },
+  { id: "FWD_PORT_MID", label: "PORT FWD Shelf – MIDDLE", arm: 5331, max: 22 },
+  { id: "FWD_PORT_TOP", label: "PORT FWD Shelf – TOP",    arm: 5331, max: 22 },
+
+  // Mission Equipment — Ramp shelves (known)
+  { id: "RAMP_PORT_FWD", label: "Ramp Shelf – PORT FWD", arm: 12463, max: 44 },
+  { id: "RAMP_PORT_AFT", label: "Ramp Shelf – PORT AFT", arm: 13226, max: 22 },
+  { id: "RAMP_STBD_FWD", label: "Ramp Shelf – STBD FWD", arm: 12481, max: 44 },
+  { id: "RAMP_STBD_AFT", label: "Ramp Shelf – STBD AFT", arm: 13228, max: 22 },
+
+  // Role Fit (SAR) — SAR Stowage Cabinet zones (all at 6275mm)
+  { id: "SAR_A", label: "SAR STOWAGE CABINET – FWD TOP (Zone A)",        arm: 6275, max: 22 },
+  { id: "SAR_B", label: "SAR STOWAGE CABINET – FWD BTM (Zone B)",        arm: 6275, max: 60 },
+  { id: "SAR_C", label: "SAR STOWAGE CABINET – UPPER (Zone C)",          arm: 6275, max: 35 },
+  { id: "SAR_D", label: "SAR STOWAGE CABINET – TOP (Zone D)",            arm: 6275, max: 63 },
+  { id: "SAR_E", label: "SAR STOWAGE CABINET – LOCKBOX TOP (Zone E)",    arm: 6275, max: 18.5 },
+  { id: "SAR_F", label: "SAR STOWAGE CABINET – LOCKBOX BTM (Zone F)",    arm: 6275, max: 18.5 },
+  { id: "SAR_G", label: "SAR STOWAGE CABINET – MIDDLE (Zone G)",         arm: 6275, max: 100 },
+  { id: "SAR_H", label: "SAR STOWAGE CABINET – BOTTOM (Zone H)",         arm: 6275, max: 125 }
+];
+
+
 function renderCargo(){
   const tail = STORE.selectedTail;
   const s = STORE.sessions[tail];
@@ -1656,30 +1686,6 @@ function renderCargo(){
   // These loads will be summed into Operating Weight/Moment (therefore affecting AUW CG downstream).
   if (!Array.isArray(s.zones)) s.zones = [];
 
-  // Discrete stowage locations (Role Fit + Mission Equipment)
-  // arm: mm; max: kg
-  const LOAD_ZONES = [
-    // Mission Equipment — Forward shelves (Port FWD, 3 levels)
-    { id: "FWD_PORT_BTM", label: "PORT FWD Shelf – BOTTOM", arm: 5331, max: 22 },
-    { id: "FWD_PORT_MID", label: "PORT FWD Shelf – MIDDLE", arm: 5331, max: 22 },
-    { id: "FWD_PORT_TOP", label: "PORT FWD Shelf – TOP",    arm: 5331, max: 22 },
-
-    // Mission Equipment — Ramp shelves (known)
-    { id: "RAMP_PORT_FWD", label: "Ramp Shelf – PORT FWD", arm: 12463, max: 44 },
-    { id: "RAMP_PORT_AFT", label: "Ramp Shelf – PORT AFT", arm: 13226, max: 22 },
-    { id: "RAMP_STBD_FWD", label: "Ramp Shelf – STBD FWD", arm: 12481, max: 44 },
-    { id: "RAMP_STBD_AFT", label: "Ramp Shelf – STBD AFT", arm: 13228, max: 22 },
-
-    // Role Fit (SAR) — SAR Stowage Cabinet zones (all at 6275mm)
-    { id: "SAR_A", label: "SAR STOWAGE CABINET – FWD TOP (Zone A)",        arm: 6275, max: 22 },
-    { id: "SAR_B", label: "SAR STOWAGE CABINET – FWD BTM (Zone B)",        arm: 6275, max: 60 },
-    { id: "SAR_C", label: "SAR STOWAGE CABINET – UPPER (Zone C)",          arm: 6275, max: 35 },
-    { id: "SAR_D", label: "SAR STOWAGE CABINET – TOP (Zone D)",            arm: 6275, max: 63 },
-    { id: "SAR_E", label: "SAR STOWAGE CABINET – LOCKBOX TOP (Zone E)",    arm: 6275, max: 18.5 },
-    { id: "SAR_F", label: "SAR STOWAGE CABINET – LOCKBOX BTM (Zone F)",    arm: 6275, max: 18.5 },
-    { id: "SAR_G", label: "SAR STOWAGE CABINET – MIDDLE (Zone G)",         arm: 6275, max: 100 },
-    { id: "SAR_H", label: "SAR STOWAGE CABINET – BOTTOM (Zone H)",         arm: 6275, max: 125 }
-  ];
 
   const getZoneDef = (id) => LOAD_ZONES.find(z => z.id === id) || null;
 
