@@ -39,7 +39,8 @@ function editorSaveDraft() {
     const payload = {
       missionEquip: EDITOR.draft.missionEquip,
       stowage:      EDITOR.draft.stowage,
-      roleFit:      EDITOR.draft.roleFit
+      roleFit:      EDITOR.draft.roleFit,
+      presets:      EDITOR.draft.presets
     };
     localStorage.setItem("ac_config_overrides", JSON.stringify(payload));
 
@@ -47,6 +48,15 @@ function editorSaveDraft() {
     AC.missionEquip = EDITOR.draft.missionEquip;
     AC.stowage      = EDITOR.draft.stowage;
     AC.roleFit      = EDITOR.draft.roleFit;
+
+    // Merge preset missionOn/missionOff back into live AC.presets
+    // (we only touch missionOn/missionOff; seats/roleFit/notes stay as-is)
+    for (const pk of Object.keys(EDITOR.draft.presets)) {
+      if (AC.presets[pk]) {
+        AC.presets[pk].missionOn  = EDITOR.draft.presets[pk].missionOn  || [];
+        AC.presets[pk].missionOff = EDITOR.draft.presets[pk].missionOff || [];
+      }
+    }
   } catch (e) {
     alert("Failed to save changes: " + e.message);
   }
@@ -65,10 +75,26 @@ function editorResetDefaults() {
 
 function editorInitDraft() {
   // Deep-clone current AC state into an editable draft.
+  // For presets we only need missionOn/missionOff — enough to control
+  // which items are default-loaded per mission configuration.
+  const presetsDraft = {};
+  for (const [pk, p] of Object.entries(AC.presets)) {
+    presetsDraft[pk] = {
+      name:      p.name,
+      missionOn:  JSON.parse(JSON.stringify(
+        Array.isArray(p.missionOn)  ? p.missionOn  : []
+      )),
+      missionOff: JSON.parse(JSON.stringify(
+        Array.isArray(p.missionOff) ? p.missionOff : []
+      ))
+    };
+  }
+
   EDITOR.draft = {
     missionEquip: JSON.parse(JSON.stringify(AC.missionEquip)),
     stowage:      JSON.parse(JSON.stringify(AC.stowage)),
-    roleFit:      JSON.parse(JSON.stringify(AC.roleFit))
+    roleFit:      JSON.parse(JSON.stringify(AC.roleFit)),
+    presets:      presetsDraft
   };
 }
 
@@ -248,12 +274,30 @@ function renderEditorMission(host) {
     <div id="missionItemList"></div>
 
     <div class="hr"></div>
+    <div id="missionAddForm"></div>
     <div class="row">
       <button class="btn good" id="missionAddBtn">+ Add New Mission Equipment</button>
     </div>
   `;
 
+  // Datalist must live directly on document.body for reliable browser linkage —
+  // datalists buried inside deeply-nested innerHTML subtrees are not consistently
+  // resolved by all browsers when inputs reference them by id.
+  const _oldDl = document.getElementById("missionGroupOptions");
+  if (_oldDl) _oldDl.remove();
+  const _dl = document.createElement("datalist");
+  _dl.id = "missionGroupOptions";
+  _dl.innerHTML = groups.map(g => `<option value="${escHtml(g)}">`).join("");
+  document.body.appendChild(_dl);
+
   const list = document.getElementById("missionItemList");
+
+  // Pre-compute preset membership for checkbox rendering
+  const presetKeys = Object.keys(EDITOR.draft.presets);
+  const isInPreset = (k, pk) => {
+    const mOn = EDITOR.draft.presets[pk]?.missionOn;
+    return Array.isArray(mOn) && mOn.includes(k);
+  };
 
   for (const k of keys) {
     const it = items[k];
@@ -261,6 +305,15 @@ function renderEditorMission(host) {
     row.className = "card";
     row.style.marginBottom = "8px";
     row.style.padding = "12px";
+
+    const presetChecks = presetKeys.map(pk => {
+      const pName = EDITOR.draft.presets[pk]?.name || pk;
+      const chk   = isInPreset(k, pk) ? "checked" : "";
+      return `<label class="small" style="display:flex;align-items:center;gap:4px;white-space:nowrap;cursor:pointer;">
+        <input type="checkbox" data-k="${k}" data-preset="${pk}" ${chk} style="width:auto;cursor:pointer;">
+        ${escHtml(pName)}
+      </label>`;
+    }).join("");
 
     row.innerHTML = `
       <div class="row" style="align-items:flex-end;">
@@ -284,38 +337,48 @@ function renderEditorMission(host) {
                  list="missionGroupOptions">
         </div>
       </div>
-      <div class="row" style="margin-top:10px; align-items:center;">
-        <div class="small mono muted" style="flex: 2 1 auto;">Key: ${k}</div>
-        <label class="small" style="flex: 0 0 auto; display:flex; align-items:center; gap:6px;">
-          <input type="checkbox" data-k="${k}" data-f="on" ${it.on ? "checked" : ""}
-                 style="width:auto;"> Default ON (loaded by preset)
-        </label>
-        <button class="btn bad" data-delk="${k}" style="flex: 0 0 auto;">Delete</button>
+      <div class="row" style="margin-top:10px; align-items:center; flex-wrap:wrap; gap:8px;">
+        <div class="small mono muted" style="flex:0 0 auto;">Key: ${k}</div>
+        <div class="small muted" style="flex:0 0 auto;">Loaded by default in:</div>
+        <div style="display:flex; flex-wrap:wrap; gap:10px; align-items:center; flex:1 1 auto;">
+          ${presetChecks}
+        </div>
+        <button class="btn bad" data-delk="${k}" style="flex:0 0 auto;">Delete</button>
       </div>
     `;
     list.appendChild(row);
   }
 
-  // Group name datalist for autocomplete
-  const dl = document.createElement("datalist");
-  dl.id = "missionGroupOptions";
-  dl.innerHTML = groups.map(g => `<option value="${escHtml(g)}">`).join("");
-  list.appendChild(dl);
-
-  // Wire field changes
+  // Field changes — text/number/select save silently, no re-render.
   list.querySelectorAll("[data-k][data-f]").forEach(el => {
     el.addEventListener("change", () => {
-      const k = el.dataset.k;
-      const f = el.dataset.f;
+      const k    = el.dataset.k;
+      const f    = el.dataset.f;
       const item = EDITOR.draft.missionEquip[k];
       if (!item) return;
-
-      if (f === "w")       item.w = parseFloat(el.value) || 0;
-      else if (f === "on") item.on = el.checked;
-      else                 item[f] = el.value;
-
+      if (f === "w") item.w = parseFloat(el.value) || 0;
+      else           item[f] = el.value;
       editorSaveDraft();
-      if (typeof render === "function") render();
+    });
+  });
+
+  // Preset membership checkboxes — add/remove item key from preset's missionOn.
+  list.querySelectorAll("[data-preset]").forEach(el => {
+    el.addEventListener("change", () => {
+      const k  = el.dataset.k;
+      const pk = el.dataset.preset;
+      const pd = EDITOR.draft.presets[pk];
+      if (!pd) return;
+      if (!Array.isArray(pd.missionOn))  pd.missionOn  = [];
+      if (!Array.isArray(pd.missionOff)) pd.missionOff = [];
+
+      if (el.checked) {
+        if (!pd.missionOn.includes(k)) pd.missionOn.push(k);
+        pd.missionOff = pd.missionOff.filter(x => x !== k);
+      } else {
+        pd.missionOn = pd.missionOn.filter(x => x !== k);
+      }
+      editorSaveDraft();
     });
   });
 
@@ -332,23 +395,66 @@ function renderEditorMission(host) {
     };
   });
 
-  // Wire add button
+  // Wire add button — inline key form (no blocking prompt)
   document.getElementById("missionAddBtn").onclick = () => {
-    const newKey = promptNewKey("ME_NEW_ITEM", Object.keys(EDITOR.draft.missionEquip), "mission equipment");
-    if (!newKey) return;
+    const addForm = document.getElementById("missionAddForm");
+    if (!addForm) return;
+    // Toggle: if already open, close it
+    if (addForm.dataset.open === "1") {
+      addForm.innerHTML = "";
+      addForm.dataset.open = "0";
+      return;
+    }
+    addForm.dataset.open = "1";
+    addForm.innerHTML = `
+      <div class="card" style="margin-bottom:10px; padding:12px; border:2px solid var(--accent,#4a9eff);">
+        <div class="lbl">New item key (UPPERCASE, numbers, underscores only)</div>
+        <div class="row" style="gap:8px; align-items:center;">
+          <input type="text" id="missionNewKeyInput" placeholder="e.g. ME_NEW_RADIO"
+                 style="flex:1; text-transform:uppercase; font-family:monospace;">
+          <button class="btn good" id="missionNewKeyConfirm">Add</button>
+          <button class="btn" id="missionNewKeyCancel">Cancel</button>
+        </div>
+        <div id="missionNewKeyErr" class="small" style="color:var(--bad,#e55); margin-top:4px; min-height:16px;"></div>
+      </div>
+    `;
+    const inp  = document.getElementById("missionNewKeyInput");
+    const err  = document.getElementById("missionNewKeyErr");
+    const confirm_ = document.getElementById("missionNewKeyConfirm");
+    const cancel_  = document.getElementById("missionNewKeyCancel");
+    inp.focus();
 
-    // Pick first stowage as default
-    const firstStow = Object.keys(EDITOR.draft.stowage)[0] || "";
-    EDITOR.draft.missionEquip[newKey] = {
-      name:  "New Equipment Item",
-      w:     0,
-      stow:  firstStow,
-      group: "Mission Equipment",
-      on:    false
+    const tryAdd = () => {
+      let key = inp.value.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+      if (!key) { err.textContent = "Key cannot be empty."; return; }
+      if (Object.keys(EDITOR.draft.missionEquip).includes(key)) {
+        err.textContent = `Key "${key}" is already in use. Choose another.`; return;
+      }
+      const firstStow = Object.keys(EDITOR.draft.stowage)[0] || "";
+      EDITOR.draft.missionEquip[key] = {
+        name:  "New Equipment Item",
+        w:     0,
+        stow:  firstStow,
+        group: "",
+        on:    false
+      };
+      editorSaveDraft();
+      renderEditor();
+      if (typeof render === "function") render();
     };
-    editorSaveDraft();
-    renderEditor();
-    if (typeof render === "function") render();
+
+    confirm_.onclick = tryAdd;
+    cancel_.onclick  = () => { addForm.innerHTML = ""; addForm.dataset.open = "0"; };
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter")  tryAdd();
+      if (e.key === "Escape") { addForm.innerHTML = ""; addForm.dataset.open = "0"; }
+    });
+    // Normalise to uppercase as user types
+    inp.addEventListener("input", () => {
+      const pos = inp.selectionStart;
+      inp.value = inp.value.toUpperCase();
+      inp.setSelectionRange(pos, pos);
+    });
   };
 }
 
@@ -380,14 +486,18 @@ function renderEditorStowage(host) {
     <div id="stowageItemList"></div>
 
     <div class="hr"></div>
+    <div id="stowageAddForm"></div>
     <div class="row">
       <button class="btn good" id="stowageAddBtn">+ Add New Stowage Location</button>
     </div>
-
-    <datalist id="stowageGroupOptions">
-      ${groups.map(g => `<option value="${escHtml(g)}">`).join("")}
-    </datalist>
   `;
+
+  const _oldDlS = document.getElementById("stowageGroupOptions");
+  if (_oldDlS) _oldDlS.remove();
+  const _dlS = document.createElement("datalist");
+  _dlS.id = "stowageGroupOptions";
+  _dlS.innerHTML = groups.map(g => `<option value="${escHtml(g)}">`).join("");
+  document.body.appendChild(_dlS);
 
   const list = document.getElementById("stowageItemList");
 
@@ -428,7 +538,7 @@ function renderEditorStowage(host) {
     list.appendChild(row);
   }
 
-  // Field edits
+  // Field edits — save silently, no re-render on field change.
   list.querySelectorAll("[data-k][data-f]").forEach(el => {
     el.addEventListener("change", () => {
       const k = el.dataset.k;
@@ -438,7 +548,6 @@ function renderEditorStowage(host) {
       if (f === "arm") loc.arm = parseInt(el.value, 10) || 0;
       else             loc[f] = el.value;
       editorSaveDraft();
-      if (typeof render === "function") render();
     });
   });
 
@@ -455,18 +564,55 @@ function renderEditorStowage(host) {
     };
   });
 
-  // Add
+  // Add — inline form
   document.getElementById("stowageAddBtn").onclick = () => {
-    const newKey = promptNewKey("NEW_LOCATION", Object.keys(EDITOR.draft.stowage), "stowage location");
-    if (!newKey) return;
-    EDITOR.draft.stowage[newKey] = {
-      name:  "New Stowage Location",
-      arm:   0,
-      group: "Other"
+    const addForm = document.getElementById("stowageAddForm");
+    if (!addForm) return;
+    if (addForm.dataset.open === "1") {
+      addForm.innerHTML = "";
+      addForm.dataset.open = "0";
+      return;
+    }
+    addForm.dataset.open = "1";
+    addForm.innerHTML = `
+      <div class="card" style="margin-bottom:10px; padding:12px; border:2px solid var(--accent,#4a9eff);">
+        <div class="lbl">New location key (UPPERCASE, numbers, underscores only)</div>
+        <div class="row" style="gap:8px; align-items:center;">
+          <input type="text" id="stowNewKeyInput" placeholder="e.g. NEW_LOCATION"
+                 style="flex:1; text-transform:uppercase; font-family:monospace;">
+          <button class="btn good" id="stowNewKeyConfirm">Add</button>
+          <button class="btn" id="stowNewKeyCancel">Cancel</button>
+        </div>
+        <div id="stowNewKeyErr" class="small" style="color:var(--bad,#e55); margin-top:4px; min-height:16px;"></div>
+      </div>
+    `;
+    const inp = document.getElementById("stowNewKeyInput");
+    const err = document.getElementById("stowNewKeyErr");
+    inp.focus();
+
+    const tryAdd = () => {
+      let key = inp.value.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+      if (!key) { err.textContent = "Key cannot be empty."; return; }
+      if (Object.keys(EDITOR.draft.stowage).includes(key)) {
+        err.textContent = `Key "${key}" is already in use.`; return;
+      }
+      EDITOR.draft.stowage[key] = { name: "New Stowage Location", arm: 0, group: "Other" };
+      editorSaveDraft();
+      renderEditor();
+      if (typeof render === "function") render();
     };
-    editorSaveDraft();
-    renderEditor();
-    if (typeof render === "function") render();
+
+    document.getElementById("stowNewKeyConfirm").onclick = tryAdd;
+    document.getElementById("stowNewKeyCancel").onclick  = () => { addForm.innerHTML = ""; addForm.dataset.open = "0"; };
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter")  tryAdd();
+      if (e.key === "Escape") { addForm.innerHTML = ""; addForm.dataset.open = "0"; }
+    });
+    inp.addEventListener("input", () => {
+      const pos = inp.selectionStart;
+      inp.value = inp.value.toUpperCase();
+      inp.setSelectionRange(pos, pos);
+    });
   };
 }
 
@@ -488,6 +634,7 @@ function renderEditorRoleFit(host) {
     <div id="roleFitItemList"></div>
 
     <div class="hr"></div>
+    <div id="roleFitAddForm"></div>
     <div class="row">
       <button class="btn good" id="roleFitAddBtn">+ Add New Role-Fit Item</button>
     </div>
@@ -529,19 +676,29 @@ function renderEditorRoleFit(host) {
     list.appendChild(row);
   }
 
-  // Field edits
-  list.querySelectorAll("[data-k][data-f]").forEach(el => {
+  // Field edits — save silently, no re-render on field change.
+  list.querySelectorAll("[data-k][data-f]:not([type=checkbox])").forEach(el => {
     el.addEventListener("change", () => {
       const k = el.dataset.k;
       const f = el.dataset.f;
       const it = EDITOR.draft.roleFit[k];
       if (!it) return;
-      if (f === "w")             it.w = parseFloat(el.value) || 0;
-      else if (f === "arm")      it.arm = parseInt(el.value, 10) || 0;
-      else if (f === "normally") it.normally = el.checked;
-      else                       it[f] = el.value;
+      if (f === "w")        it.w = parseFloat(el.value) || 0;
+      else if (f === "arm") it.arm = parseInt(el.value, 10) || 0;
+      else                  it[f] = el.value;
       editorSaveDraft();
-      if (typeof render === "function") render();
+    });
+  });
+
+  // Checkboxes — explicit boolean, no re-render.
+  list.querySelectorAll("[data-k][data-f][type=checkbox]").forEach(el => {
+    el.addEventListener("change", () => {
+      const k = el.dataset.k;
+      const f = el.dataset.f;
+      const it = EDITOR.draft.roleFit[k];
+      if (!it) return;
+      it[f] = el.checked === true;
+      editorSaveDraft();
     });
   });
 
@@ -558,19 +715,55 @@ function renderEditorRoleFit(host) {
     };
   });
 
-  // Add
+  // Add — inline form
   document.getElementById("roleFitAddBtn").onclick = () => {
-    const newKey = promptNewKey("RF_NEW_ITEM", Object.keys(EDITOR.draft.roleFit), "role-fit item");
-    if (!newKey) return;
-    EDITOR.draft.roleFit[newKey] = {
-      name:     "New Role-Fit Item",
-      w:        0,
-      arm:      0,
-      normally: false
+    const addForm = document.getElementById("roleFitAddForm");
+    if (!addForm) return;
+    if (addForm.dataset.open === "1") {
+      addForm.innerHTML = "";
+      addForm.dataset.open = "0";
+      return;
+    }
+    addForm.dataset.open = "1";
+    addForm.innerHTML = `
+      <div class="card" style="margin-bottom:10px; padding:12px; border:2px solid var(--accent,#4a9eff);">
+        <div class="lbl">New item key (UPPERCASE, numbers, underscores only)</div>
+        <div class="row" style="gap:8px; align-items:center;">
+          <input type="text" id="rfNewKeyInput" placeholder="e.g. RF_NEW_ITEM"
+                 style="flex:1; text-transform:uppercase; font-family:monospace;">
+          <button class="btn good" id="rfNewKeyConfirm">Add</button>
+          <button class="btn" id="rfNewKeyCancel">Cancel</button>
+        </div>
+        <div id="rfNewKeyErr" class="small" style="color:var(--bad,#e55); margin-top:4px; min-height:16px;"></div>
+      </div>
+    `;
+    const inp = document.getElementById("rfNewKeyInput");
+    const err = document.getElementById("rfNewKeyErr");
+    inp.focus();
+
+    const tryAdd = () => {
+      let key = inp.value.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+      if (!key) { err.textContent = "Key cannot be empty."; return; }
+      if (Object.keys(EDITOR.draft.roleFit).includes(key)) {
+        err.textContent = `Key "${key}" is already in use.`; return;
+      }
+      EDITOR.draft.roleFit[key] = { name: "New Role-Fit Item", w: 0, arm: 0, normally: false };
+      editorSaveDraft();
+      renderEditor();
+      if (typeof render === "function") render();
     };
-    editorSaveDraft();
-    renderEditor();
-    if (typeof render === "function") render();
+
+    document.getElementById("rfNewKeyConfirm").onclick = tryAdd;
+    document.getElementById("rfNewKeyCancel").onclick  = () => { addForm.innerHTML = ""; addForm.dataset.open = "0"; };
+    inp.addEventListener("keydown", (e) => {
+      if (e.key === "Enter")  tryAdd();
+      if (e.key === "Escape") { addForm.innerHTML = ""; addForm.dataset.open = "0"; }
+    });
+    inp.addEventListener("input", () => {
+      const pos = inp.selectionStart;
+      inp.value = inp.value.toUpperCase();
+      inp.setSelectionRange(pos, pos);
+    });
   };
 }
 
@@ -593,8 +786,8 @@ function editorExportConfig() {
   push(" * Exported by the Custodian Editor on " + new Date().toISOString());
   push(" *");
   push(" * This file was generated from the editor. It contains the full");
-  push(" * current state of all aircraft data. Replace your existing");
-  push(" * config.js with this file to publish changes.");
+  push(" * current state of all aircraft data. Rename to config.js and");
+  push(" * replace your existing config.js to publish changes.");
   push(" */");
   push("");
   push("// SECTION 1 — TAIL NUMBERS");
@@ -630,7 +823,16 @@ function editorExportConfig() {
   push("const AC_MISSION_EQUIP = " + stringifyPretty(EDITOR.draft.missionEquip) + ";");
   push("");
   push("// SECTION 10 — MISSION PRESETS");
-  push("const AC_PRESETS = " + stringifyPretty(AC.presets) + ";");
+  // Rebuild full presets from live AC (for seats, roleFit, notes, image)
+  // but apply the editor's missionOn/missionOff overrides.
+  const exportPresets = JSON.parse(JSON.stringify(AC.presets));
+  for (const pk of Object.keys(EDITOR.draft.presets)) {
+    if (exportPresets[pk]) {
+      exportPresets[pk].missionOn  = EDITOR.draft.presets[pk].missionOn  || [];
+      exportPresets[pk].missionOff = EDITOR.draft.presets[pk].missionOff || [];
+    }
+  }
+  push("const AC_PRESETS = " + stringifyPretty(exportPresets) + ";");
   push("");
   push("// EXPORT");
   push("const AC = {");
@@ -657,15 +859,24 @@ function editorExportConfig() {
   push("    if (ov.missionEquip) AC.missionEquip = ov.missionEquip;");
   push("    if (ov.stowage)      AC.stowage      = ov.stowage;");
   push("    if (ov.roleFit)      AC.roleFit      = ov.roleFit;");
+  push("    // Restore preset missionOn/missionOff overrides");
+  push("    if (ov.presets) {");
+  push("      for (const pk of Object.keys(ov.presets)) {");
+  push("        if (AC.presets[pk]) {");
+  push("          if (ov.presets[pk].missionOn)  AC.presets[pk].missionOn  = ov.presets[pk].missionOn;");
+  push("          if (ov.presets[pk].missionOff) AC.presets[pk].missionOff = ov.presets[pk].missionOff;");
+  push("        }");
+  push("      }");
+  push("    }");
   push("  }");
   push("} catch (e) { console.warn('Could not load config overrides:', e); }");
 
   const content = lines.join("\n");
-  const blob    = new Blob([content], { type: "text/javascript" });
+  const blob    = new Blob([content], { type: "text/plain" });
   const url     = URL.createObjectURL(blob);
   const a       = document.createElement("a");
   a.href        = url;
-  a.download    = "config.js";
+  a.download    = "config.txt";
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);
