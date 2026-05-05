@@ -720,6 +720,7 @@ function editorExportConfig() {
   push("// SECTION 5 — FUEL TANKS");
   push("const AC_FUEL_TANK_ARMS = " + stringifyPretty(AC.fuelTankArms) + ";");
   push("const AC_FUEL_STAGES = "    + stringifyPretty(AC.fuelStages)    + ";");
+  push("const AC_MAX_FUEL_KG = " + (AC.maxFuelKg || 4152) + "; // kg — sum of all positive fill stages");
   push("");
   push("// SECTION 6 — SEATS");
   push("const AC_CREW_SEATS = " + stringifyPretty(AC.crewSeats) + ";");
@@ -757,6 +758,7 @@ function editorExportConfig() {
   push("  ramp:          AC_RAMP,");
   push("  fuelTankArms:  AC_FUEL_TANK_ARMS,");
   push("  fuelStages:    AC_FUEL_STAGES,");
+  push("  maxFuelKg:     AC_MAX_FUEL_KG,");
   push("  crewSeats:     AC_CREW_SEATS,");
   push("  paxSeats:      AC_PAX_SEATS,");
   push("  stowage:       AC_STOWAGE,");

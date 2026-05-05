@@ -1047,6 +1047,8 @@ const AC_PRESETS = {
 };
 
 // EXPORT
+const AC_MAX_FUEL_KG = 4152; // kg — sum of all positive fill stages
+
 const AC = {
   auth:          AC_AUTH,
   tails:         AC_TAILS,
@@ -1055,6 +1057,7 @@ const AC = {
   ramp:          AC_RAMP,
   fuelTankArms:  AC_FUEL_TANK_ARMS,
   fuelStages:    AC_FUEL_STAGES,
+  maxFuelKg:     AC_MAX_FUEL_KG,
   crewSeats:     AC_CREW_SEATS,
   paxSeats:      AC_PAX_SEATS,
   stowage:       AC_STOWAGE,
