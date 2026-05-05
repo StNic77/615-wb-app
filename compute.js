@@ -299,8 +299,8 @@ function computeWB(tail){
   })();
 
   // Fuel
-const MAX_FUEL_KG = AC.maxFuelKg; // hard physical cap (see config.js)
-  
+  const MAX_FUEL_KG = AC.maxFuelKg || 4152; // hard physical cap (see config.js)
+
   // ---- Hard physical fuel cap (does not change allowance logic; prevents impossible fuel) ----
   if (!s.fuel) s.fuel = { total: 0, tanks: {} };
 

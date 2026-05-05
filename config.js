@@ -1,6 +1,6 @@
 /**
  * config.js — CH-149 - 615 W&B App
- * Exported by the Custodian Editor on 2026-05-04T22:19:55.669Z
+ * Exported by the Custodian Editor on 2026-05-05T22:35:16.651Z
  *
  * This file was generated from the editor. It contains the full
  * current state of all aircraft data. Rename to config.js and
@@ -487,6 +487,11 @@ const AC_STOWAGE = {
     "name": "Ramp Shelf Stbd Aft",
     "arm": 13228,
     "group": "Ramp"
+  },
+  "NEW_SPOT": {
+    "name": "snack shelf",
+    "arm": 8000,
+    "group": "Other"
   }
 };
 
@@ -722,7 +727,7 @@ const AC_MISSION_EQUIP = {
     "name": "SAR Drug Kit",
     "w": 1,
     "stow": "OVERHEAD_PORT",
-    "group": "Misc / Mission Kits",
+    "group": "Medical Equipment",
     "on": true
   },
   "ME_PORT_FWD_SHELF_TOP": {
@@ -841,7 +846,8 @@ const AC_PRESETS = {
       "ME_RAMP_SHELF_PORT_AFT",
       "ME_RAMP_SHELF_STBD_FWD",
       "ME_RAMP_SHELF_STBD_AFT",
-      "ME_ALSE_ARCTIC2"
+      "ME_ALSE_ARCTIC2",
+      "ME_NEW_THINGY"
     ],
     "missionOff": []
   },
@@ -1065,12 +1071,14 @@ try {
     if (ov.missionEquip) AC.missionEquip = ov.missionEquip;
     if (ov.stowage)      AC.stowage      = ov.stowage;
     if (ov.roleFit)      AC.roleFit      = ov.roleFit;
-    // Restore preset missionOn/missionOff overrides
+    // Restore preset missionOn/missionOff and roleFitOn/Off overrides
     if (ov.presets) {
       for (const pk of Object.keys(ov.presets)) {
         if (AC.presets[pk]) {
           if (ov.presets[pk].missionOn)  AC.presets[pk].missionOn  = ov.presets[pk].missionOn;
           if (ov.presets[pk].missionOff) AC.presets[pk].missionOff = ov.presets[pk].missionOff;
+          if (ov.presets[pk].roleFitOn)  AC.presets[pk].roleFitOn  = ov.presets[pk].roleFitOn;
+          if (ov.presets[pk].roleFitOff) AC.presets[pk].roleFitOff = ov.presets[pk].roleFitOff;
         }
       }
     }

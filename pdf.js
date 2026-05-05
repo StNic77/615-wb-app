@@ -9,16 +9,17 @@
  * Called by the "Print / Save PDF" button on the Certify tab.
  *
  * Document sections:
- *   1. Header         — unit, tail, date, FE, AC commander (optional)
- *   2. Acceptance     — basic weight, basic CG, fuel log
- *   3. Mission Config — preset, role-fit items installed
- *   4. Mission Equip  — equipment loaded with weights and stowage
- *   5. Crew & Pax     — seats installed and occupied
- *   6. Fuel           — total, landing reserve, tank breakdown
- *   7. Load Planning  — bay loads and cargo entries (if any)
- *   8. W&B Summary    — operating weight/CG, AUW/CG, envelope result
- *   9. CG Envelope    — plotted polygon with aircraft point
- *  10. Certification  — FE signature block, MCDU cross-check values
+ *   Header      — unit, tail, date, FE, accepted-by
+ *   1. Acceptance     — basic weight, basic CG, fuel log
+ *   2. Fuel           — total, landing reserve, tank breakdown
+ *   3. W&B Summary    — operating weight/CG, AUW/CG, envelope result
+ *   4. CG Envelope    — plotted polygon with aircraft burn track
+ *   5. Mission Config — preset applied, note re appendix
+ *   6. Mission Equip  — equipment by group (SAR/ALSE/Mission/Shelves/Other)
+ *   7. Crew & Pax     — seats installed and occupied
+ *   8. Load Planning  — bay loads and cargo entries (if any)
+ *   9. Certification  — FE signature block, MCDU cross-check values
+ *   Appendix A        — Role-Fit Equipment Installed (alphabetical)
  */
 
 /* =========================
@@ -55,19 +56,24 @@ function generateWBReport() {
   const ctx = new PDFContext(doc, tail, s, wb);
 
   ctx.drawHeader();
-  ctx.drawAcceptance();
-  ctx.drawMissionConfig();
-  ctx.drawMissionEquip();
-  ctx.drawSeats();
-  ctx.drawFuel();
-  ctx.drawLoadPlanning();
-  ctx.drawWBSummary();
-  ctx.drawEnvelopePlot();
-  ctx.drawCertification();
+  ctx.drawAcceptance();       // 1
+  ctx.drawFuel();             // 2
+  ctx.drawWBSummary();        // 3
+  ctx.drawEnvelopePlot();     // 4
+  ctx.drawMissionConfig();    // 5
+  ctx.drawMissionEquip();     // 6
+  ctx.drawSeats();            // 7
+  ctx.drawLoadPlanning();     // 8
+  ctx.drawCertification();    // 9
+  ctx.drawRoleFitAppendix();  // Appendix A — Role-Fit Installed
 
-  // File name: WB_615_[TAIL]_[DATE].pdf
-  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-  doc.save(`WB_615_${tail}_${dateStr}.pdf`);
+  // File name: WB_615_[TAIL]_[YYYYMMDD]_Z[HH:MM].pdf — all UTC (Zulu)
+  const now     = new Date();
+  const dateStr = now.toISOString().slice(0, 10).replace(/-/g, "");   // YYYYMMDD UTC
+  const zuluHH  = String(now.getUTCHours()).padStart(2, "0");
+  const zuluMM  = String(now.getUTCMinutes()).padStart(2, "0");
+  const zuluStr = `Z${zuluHH}${zuluMM}`;
+  doc.save(`WB_615_${tail}_${dateStr}_${zuluStr}.pdf`);
 }
 
 
@@ -320,13 +326,20 @@ class PDFContext {
     this.setColor(...this.C_LIGHT);
     this.text("CH-149 - 615 Cormorant", this.marginL, 19);
 
-    // Date/time top-right
-    const now     = new Date();
-    const dateStr = now.toLocaleDateString("en-CA", { year:"numeric", month:"short", day:"2-digit" });
-    const timeStr = now.toLocaleTimeString("en-CA", { hour:"2-digit", minute:"2-digit", hour12:false });
-    this.setFont("normal", 8);
-    this.text(`${dateStr}  ${timeStr} L`, this.pageW - this.marginR, 12, { align:"right" });
-    this.text("LOCAL", this.pageW - this.marginR, 19, { align:"right" });
+    // Date/time top-right — local and Zulu
+    const now      = new Date();
+    const localDate = now.toLocaleDateString("en-CA", { year:"numeric", month:"short", day:"2-digit" });
+    const localTime = now.toLocaleTimeString("en-CA", { hour:"2-digit", minute:"2-digit", hour12:false });
+    const zuluDate  = now.toLocaleDateString("en-CA", { year:"numeric", month:"short", day:"2-digit", timeZone:"UTC" });
+    const zuluHH    = String(now.getUTCHours()).padStart(2, "0");
+    const zuluMM    = String(now.getUTCMinutes()).padStart(2, "0");
+    const zuluTime  = `${zuluHH}:${zuluMM}`;
+    this.setFont("bold", 10);
+    this.setColor(...this.C_WHITE);
+    this.text(`${localDate}  ${localTime} L`, this.pageW - this.marginR, 11, { align:"right" });
+    this.setFont("bold", 10);
+    this.setColor(...this.C_LIGHT);
+    this.text(`${zuluDate}  ${zuluTime} Z`, this.pageW - this.marginR, 20, { align:"right" });
 
     this.y = 34;
 
@@ -366,22 +379,32 @@ class PDFContext {
     const s = this.s;
     this.sectionHeader("1 · Acceptance (Logbook Entry)");
 
-    const at = s.accepted.at
-      ? new Date(s.accepted.at).toLocaleString("en-CA", { dateStyle:"medium", timeStyle:"short" })
+    const _accD = s.accepted.at ? new Date(s.accepted.at) : null;
+    const atLocal = _accD
+      ? _accD.toLocaleString("en-CA", { dateStyle:"medium", timeStyle:"short" }) + " L"
+      : "—";
+    const atZulu = _accD
+      ? (() => {
+          const d = _accD.toLocaleDateString("en-CA", { year:"numeric", month:"short", day:"2-digit", timeZone:"UTC" });
+          const hh = String(_accD.getUTCHours()).padStart(2, "0");
+          const mm = String(_accD.getUTCMinutes()).padStart(2, "0");
+          return `${d}  ${hh}:${mm} Z`;
+        })()
       : "—";
 
     this.kvRow("Basic Weight",     `${s.accepted.basicW ?? "—"} kg`);
     this.kvRow("Basic CG",         `${s.accepted.basicCG ?? "—"} mm`);
     this.kvRow("Fuel (log entry)", `${s.accepted.fuelLog ?? "—"} kg`);
     this.kvRow("Accepted by",      s.accepted.by ?? "—");
-    this.kvRow("Accepted at",      at);
+    this.kvRow("Accepted at (L)",  atLocal);
+    this.kvRow("Accepted at (Z)",  atZulu);
     this.spacer();
   }
 
 
   drawMissionConfig() {
     const s = this.s;
-    this.sectionHeader("2 · Mission Configuration");
+    this.sectionHeader("5 · Mission Configuration");
 
     const presetName = s.preset ? (AC.presets[s.preset]?.name ?? s.preset) : "Custom (no preset)";
     const notes      = s.preset ? (AC.presets[s.preset]?.notes ?? "") : "";
@@ -390,56 +413,68 @@ class PDFContext {
     if (notes) this.note(`Note: ${notes}`);
     this.spacer(2);
 
-    // Role-fit table — only installed items
-    const rfRows = Object.entries(AC.roleFit)
-      .filter(([k]) => s.roleFit[k])
-      .map(([, it]) => [it.name, `${it.w} kg`, `${it.arm} mm`]);
-
-    const rfOff = Object.entries(AC.roleFit)
-      .filter(([k]) => !s.roleFit[k])
-      .map(([, it]) => it.name);
-
-    if (rfRows.length) {
-      this.setFont("bold", 8);
-      this.setColor(...this.C_DARK);
-      this.text("Role-Fit Installed:", this.marginL, this.y);
-      this.y += 5;
-      this.table(
-        ["Item", "Weight", "Arm"],
-        rfRows,
-        [130, 25, 33]
-      );
-    }
-
-    if (rfOff.length) {
-      this.note(`Not installed: ${rfOff.join(", ")}`);
-    }
+    // Count installed role-fit items for the reference note
+    const rfOnCount = Object.keys(AC.roleFit).filter(k => s.roleFit[k]).length;
+    this.note(`Role-fit installed equipment (${rfOnCount} items) is listed in Appendix A at the end of this document.`);
     this.spacer();
   }
 
 
   drawMissionEquip() {
     const s = this.s;
-    this.sectionHeader("3 · Mission Equipment");
+    this.sectionHeader("6 · Mission Equipment");
 
-    const meRows = Object.keys(AC.missionEquip)
+    const items = Object.keys(AC.missionEquip)
       .filter(k => s.mission[k])
       .map(k => getMissionItem(k))
-      .filter(it => it)
-      .map(it => [
-        it.name,
-        `${it.w} kg`,
-        `${it.arm} mm`,
-        it.stow
-      ]);
+      .filter(it => it);
 
-    if (meRows.length === 0) {
+    if (items.length === 0) {
       this.note("No mission equipment loaded.");
-    } else {
+      this.spacer();
+      return;
+    }
+
+    // Group order — items whose group doesn't match any bucket go into Other
+    const GROUP_ORDER = [
+      { label: "SAR Equipment",       match: (g) => /sar/i.test(g) },
+      { label: "ALSE Equipment",      match: (g) => /alse/i.test(g) },
+      { label: "Medical Equipment",   match: (g) => /med/i.test(g) },
+      { label: "Mission Equipment",   match: (g) => /mission/i.test(g) },
+      { label: "Port Forward Shelves",match: (g) => /port.*fwd|port.*forward|fwd.*port|forward.*port/i.test(g) },
+      { label: "Ramp Shelves",        match: (g) => /ramp/i.test(g) },
+      { label: "Other",               match: () => true },  // catch-all
+    ];
+
+    // Assign each item to the first matching bucket
+    const buckets = GROUP_ORDER.map(b => ({ label: b.label, rows: [] }));
+    for (const it of items) {
+      const g = it.group || "";
+      let placed = false;
+      for (let i = 0; i < GROUP_ORDER.length - 1; i++) {
+        if (GROUP_ORDER[i].match(g)) {
+          buckets[i].rows.push(it);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) buckets[buckets.length - 1].rows.push(it); // Other
+    }
+
+    const headers   = ["Item", "Weight", "Arm", "Stowage"];
+    const colWidths = [92, 18, 20, 58];
+
+    for (const bucket of buckets) {
+      if (bucket.rows.length === 0) continue;
+      this.checkPageBreak(12);
+      this.setFont("bold", 8);
+      this.setColor(...this.C_MED);
+      this.text(bucket.label.toUpperCase(), this.marginL, this.y);
+      this.y += 5;
       this.table(
-        ["Item", "Weight", "Arm", "Stowage"],
-        meRows,
-        [92, 18, 20, 58]
+        headers,
+        bucket.rows.map(it => [it.name, `${it.w} kg`, `${it.arm} mm`, it.stow]),
+        colWidths
       );
     }
     this.spacer();
@@ -448,7 +483,7 @@ class PDFContext {
 
   drawSeats() {
     const s = this.s;
-    this.sectionHeader("4 · Crew & Passenger Seats");
+    this.sectionHeader("7 · Crew & Passenger Seats");
 
     const personW = 90; // kg std occupant weight
 
@@ -509,7 +544,7 @@ class PDFContext {
   drawFuel() {
     const s  = this.s;
     const wb = this.wb;
-    this.sectionHeader("5 · Fuel");
+    this.sectionHeader("2 · Fuel");
 
     this.kvRow("Total fuel (departure)", `${wb.fuelTotal} kg`);
     this.kvRow("Landing reserve",        `${s.fuel?.landing ?? 300} kg`);
@@ -535,7 +570,7 @@ class PDFContext {
 
   drawLoadPlanning() {
     const s = this.s;
-    this.sectionHeader("6 · Load Planning");
+    this.sectionHeader("8 · Load Planning");
 
     // Bay loads
     const bays    = s.bays || {};
@@ -595,7 +630,7 @@ class PDFContext {
   drawWBSummary() {
     const wb  = this.wb;
     const s   = this.s;
-    this.sectionHeader("7 · Weight & Balance Summary");
+    this.sectionHeader("3 · Weight & Balance Summary");
 
     // ── Calculated vs MCDU discrepancy check ────────────────────
     // Tolerances match the certify-gate thresholds in app.js.
@@ -665,8 +700,13 @@ class PDFContext {
     this.spacer(1);
     this.kvRow("CG Hard Limits",       cgStatus,         cgHl);
     this.kvRow("Envelope",             envStatus,        envHl);
-    this.kvRow("In Main Envelope",     wb.flags.inMain   ? "YES" : "NO");
-    this.kvRow("In Alt Envelope",      wb.flags.inAlt    ? "YES" : "NO");
+    // Alt envelope: highlight both rows yellow — aircraft is legal but in expanded limits
+    const inAlt      = wb.flags.inAlt;
+    const inMain     = wb.flags.inMain;
+    const mainHl     = inAlt ? "warn" : null;          // yellow NO when alt is active
+    const altHl      = inAlt ? "warn" : null;           // yellow YES when alt is active
+    this.kvRow("In Main Envelope",  inMain ? "YES" : "NO",  mainHl);
+    this.kvRow("In Alt Envelope",   inAlt  ? "YES" : "NO",  altHl);
     this.kvRow("AUW Check",            auwStatus,        auwHl);
 
     // ── Landing condition + burn track check ──
@@ -816,7 +856,7 @@ class PDFContext {
 
   drawEnvelopePlot() {
     this.checkPageBreak(100);
-    this.sectionHeader("8 · CG Envelope Plot");
+    this.sectionHeader("4 · CG Envelope Plot");
 
     const wb      = this.wb;
     const plotX   = this.marginL;
@@ -1013,17 +1053,61 @@ class PDFContext {
   }
 
 
+  drawRoleFitAppendix() {
+    const s = this.s;
+    this.newPage();
+    this.sectionHeader("Appendix A · Role-Fit Equipment Installed");
+
+    const rfRows = Object.entries(AC.roleFit)
+      .filter(([k]) => s.roleFit[k])
+      .map(([, it]) => [it.name, `${it.w} kg`, `${it.arm} mm`])
+      .sort((a, b) => a[0].localeCompare(b[0]));  // alphabetical by name
+
+    if (rfRows.length === 0) {
+      this.note("No role-fit equipment installed.");
+    } else {
+      this.table(
+        ["Item", "Weight", "Arm"],
+        rfRows,
+        [130, 25, 33]
+      );
+    }
+
+    // Also list what is NOT installed for completeness
+    const rfOff = Object.entries(AC.roleFit)
+      .filter(([k]) => !s.roleFit[k])
+      .map(([, it]) => it.name)
+      .sort((a, b) => a.localeCompare(b));
+
+    if (rfOff.length) {
+      this.spacer(2);
+      this.note(`Not installed: ${rfOff.join(", ")}`);
+    }
+    this.spacer();
+  }
+
+
   drawCertification() {
     const s  = this.s;
     this.checkPageBreak(45);
     this.sectionHeader("9 · Certification");
 
-    const certAt = s.certify?.at
-      ? new Date(s.certify.at).toLocaleString("en-CA", { dateStyle:"medium", timeStyle:"short" })
+    const _cerD = s.certify?.at ? new Date(s.certify.at) : null;
+    const certAtLocal = _cerD
+      ? _cerD.toLocaleString("en-CA", { dateStyle:"medium", timeStyle:"short" }) + " L"
+      : "—";
+    const certAtZulu = _cerD
+      ? (() => {
+          const d = _cerD.toLocaleDateString("en-CA", { year:"numeric", month:"short", day:"2-digit", timeZone:"UTC" });
+          const hh = String(_cerD.getUTCHours()).padStart(2, "0");
+          const mm = String(_cerD.getUTCMinutes()).padStart(2, "0");
+          return `${d}  ${hh}:${mm} Z`;
+        })()
       : "—";
 
-    this.kvRow("Certified by (FE Svc #)", s.certify?.by   ?? "—");
-    this.kvRow("Certified at",            certAt);
+    this.kvRow("Certified by (FE Svc #)", s.certify?.by ?? "—");
+    this.kvRow("Certified at (L)",        certAtLocal);
+    this.kvRow("Certified at (Z)",        certAtZulu);
     this.spacer(3);
 
     // Signature block
@@ -1041,7 +1125,8 @@ class PDFContext {
     this.setColor(...this.C_MED);
     this.text("Flight Engineer Signature", this.marginL + 3, sigY + 5);
     this.text("Svc #: " + (s.certify?.by ?? ""), this.marginL + 3, sigY + 10);
-    this.text("Date / Time: " + certAt, this.marginL + 3, sigY + 16);
+    this.text("L: " + certAtLocal, this.marginL + 3, sigY + 13);
+    this.text("Z: " + certAtZulu,  this.marginL + 3, sigY + 18);
 
     // Ops copy box
     this.doc.rect(this.marginL + col1W + 6, sigY, col2W, sigH, "S");
@@ -1055,10 +1140,25 @@ class PDFContext {
 
     // Footer
     this.hRule(this.y);
-    this.y += 4;
-    this.setFont("italic", 7);
+    this.y += 5;
+    const footNow  = new Date();
+    const footDate = footNow.toISOString().slice(0, 10);
+    const footHH   = String(footNow.getUTCHours()).padStart(2, "0");
+    const footMM   = String(footNow.getUTCMinutes()).padStart(2, "0");
+    // Line 1: document identity — bold
+    this.setFont("bold", 8);
+    this.setColor(...this.C_DARK);
+    this.text(
+      `CH-149 - 615 · Tail ${this.tail} · Generated ${footDate} ${footHH}:${footMM}Z`,
+      this.pageW / 2, this.y, { align: "center" }
+    );
+    this.y += 5;
+    // Line 2: disclaimer — italic, muted
+    this.setFont("italic", 7.5);
     this.setColor(...this.C_MED);
-    const footerText = `CH-149 - 615 · Tail ${this.tail} · Generated ${new Date().toLocaleString("en-CA")} · This document is a planning tool and does not replace certified aircraft documentation.`;
-    this.text(footerText, this.pageW / 2, this.y, { align: "center" });
+    this.text(
+      "This document is a planning tool and does not replace certified aircraft documentation.",
+      this.pageW / 2, this.y, { align: "center" }
+    );
   }
 }
