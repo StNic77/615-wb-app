@@ -49,12 +49,30 @@ function editorSaveDraft() {
     AC.stowage      = EDITOR.draft.stowage;
     AC.roleFit      = EDITOR.draft.roleFit;
 
-    // Merge preset missionOn/missionOff back into live AC.presets
-    // (we only touch missionOn/missionOff; seats/roleFit/notes stay as-is)
+    // Merge preset missionOn/Off and roleFitOn/Off back into live AC.presets
+    // (seats/notes/image are not edited here so we leave those alone)
     for (const pk of Object.keys(EDITOR.draft.presets)) {
       if (AC.presets[pk]) {
         AC.presets[pk].missionOn  = EDITOR.draft.presets[pk].missionOn  || [];
         AC.presets[pk].missionOff = EDITOR.draft.presets[pk].missionOff || [];
+        AC.presets[pk].roleFitOn  = EDITOR.draft.presets[pk].roleFitOn  || [];
+        AC.presets[pk].roleFitOff = EDITOR.draft.presets[pk].roleFitOff || [];
+      }
+    }
+
+    // Also update the live session's roleFit state for any tail currently loaded —
+    // "normally installed" changes should take effect immediately without a reload.
+    for (const tail of Object.keys(STORE.sessions || {})) {
+      const s = STORE.sessions[tail];
+      if (!s || !s.roleFit) continue;
+      for (const k of Object.keys(EDITOR.draft.roleFit)) {
+        // Only update keys that don't already have an explicit session value set
+        // by a preset (i.e. the user hasn't deliberately toggled it off).
+        // We update ALL keys that don't yet exist in the session (new items),
+        // and re-sync the `normally` default for existing ones.
+        if (!(k in s.roleFit)) {
+          s.roleFit[k] = !!EDITOR.draft.roleFit[k].normally;
+        }
       }
     }
   } catch (e) {
@@ -75,18 +93,16 @@ function editorResetDefaults() {
 
 function editorInitDraft() {
   // Deep-clone current AC state into an editable draft.
-  // For presets we only need missionOn/missionOff — enough to control
-  // which items are default-loaded per mission configuration.
+  // Presets carry missionOn/Off AND roleFitOn/Off so the editor
+  // can manage both mission equipment and role-fit preset membership.
   const presetsDraft = {};
   for (const [pk, p] of Object.entries(AC.presets)) {
     presetsDraft[pk] = {
-      name:      p.name,
-      missionOn:  JSON.parse(JSON.stringify(
-        Array.isArray(p.missionOn)  ? p.missionOn  : []
-      )),
-      missionOff: JSON.parse(JSON.stringify(
-        Array.isArray(p.missionOff) ? p.missionOff : []
-      ))
+      name:       p.name,
+      missionOn:  JSON.parse(JSON.stringify(Array.isArray(p.missionOn)  ? p.missionOn  : [])),
+      missionOff: JSON.parse(JSON.stringify(Array.isArray(p.missionOff) ? p.missionOff : [])),
+      roleFitOn:  JSON.parse(JSON.stringify(Array.isArray(p.roleFitOn)  ? p.roleFitOn  : [])),
+      roleFitOff: JSON.parse(JSON.stringify(Array.isArray(p.roleFitOff) ? p.roleFitOff : []))
     };
   }
 
@@ -482,6 +498,15 @@ function renderEditorStowage(host) {
       ${keys.length} location${keys.length === 1 ? "" : "s"}.
       Adding or removing stowage locations is rare — they are defined by the airframe.
     </div>
+    <div class="callout" style="margin-bottom:12px; font-size:13px;">
+      <strong>What stowage locations do:</strong> Each location has an arm (mm) that is used
+      to calculate the CG contribution of any mission equipment assigned to it.
+      Adding a new location here makes it available in the Mission Equipment stowage dropdown.<br><br>
+      <strong>Load Planning zones are separate.</strong> The discrete zones shown on the Load Planning
+      tab (SAR Cabinet, Ramp Shelves, Port FWD Shelves) are defined in the app code and are not
+      driven by this list. A new stowage location will <em>not</em> automatically appear there —
+      that requires a code change to app.js.
+    </div>
 
     <div id="stowageItemList"></div>
 
@@ -596,7 +621,7 @@ function renderEditorStowage(host) {
       if (Object.keys(EDITOR.draft.stowage).includes(key)) {
         err.textContent = `Key "${key}" is already in use.`; return;
       }
-      EDITOR.draft.stowage[key] = { name: "New Stowage Location", arm: 0, group: "Other" };
+      EDITOR.draft.stowage[key] = { name: "New Stowage Location", arm: 0, group: "" };
       editorSaveDraft();
       renderEditor();
       if (typeof render === "function") render();
@@ -642,12 +667,29 @@ function renderEditorRoleFit(host) {
 
   const list = document.getElementById("roleFitItemList");
 
+  // Pre-compute preset membership for role-fit checkboxes
+  const rfPresetKeys = Object.keys(EDITOR.draft.presets);
+  const isInRfPresetOn = (k, pk) => {
+    const arr = EDITOR.draft.presets[pk]?.roleFitOn;
+    return Array.isArray(arr) && arr.includes(k);
+  };
+
   for (const k of keys) {
     const it = roleFit[k];
     const row = document.createElement("div");
     row.className = "card";
     row.style.marginBottom = "8px";
     row.style.padding = "12px";
+
+    // Simple checkbox per preset: checked = installed when this preset loads.
+    const presetChecks = rfPresetKeys.map(pk => {
+      const pName = EDITOR.draft.presets[pk]?.name || pk;
+      const chk   = isInRfPresetOn(k, pk) ? "checked" : "";
+      return `<label class="small" style="display:flex;align-items:center;gap:4px;white-space:nowrap;cursor:pointer;">
+        <input type="checkbox" data-k="${k}" data-rfpreset="${pk}" ${chk} style="width:auto;cursor:pointer;">
+        ${escHtml(pName)}
+      </label>`;
+    }).join("");
 
     row.innerHTML = `
       <div class="row" style="align-items:flex-end;">
@@ -664,19 +706,23 @@ function renderEditorRoleFit(host) {
           <input type="number" step="1" data-k="${k}" data-f="arm" value="${it.arm}">
         </div>
       </div>
-      <div class="row" style="margin-top:10px; align-items:center;">
-        <div class="small mono muted" style="flex: 2 1 auto;">Key: ${k}</div>
-        <label class="small" style="flex: 0 0 auto; display:flex; align-items:center; gap:6px;">
+      <div class="row" style="margin-top:10px; align-items:center; flex-wrap:wrap; gap:8px;">
+        <div class="small mono muted" style="flex:0 0 auto;">Key: ${k}</div>
+        <label class="small" style="flex:0 0 auto; display:flex; align-items:center; gap:6px; cursor:pointer;">
           <input type="checkbox" data-k="${k}" data-f="normally" ${it.normally ? "checked" : ""}
-                 style="width:auto;"> Normally installed (counted at BW)
+                 style="width:auto; cursor:pointer;"> Normally installed (counted at BW)
         </label>
-        <button class="btn bad" data-delk="${k}" style="flex: 0 0 auto;">Delete</button>
+      </div>
+      <div class="row" style="margin-top:8px; align-items:center; flex-wrap:wrap; gap:10px;">
+        <div class="small muted" style="flex:0 0 auto;">Installed in:</div>
+        ${presetChecks}
+        <button class="btn bad" data-delk="${k}" style="flex:0 0 auto; margin-left:auto;">Delete</button>
       </div>
     `;
     list.appendChild(row);
   }
 
-  // Field edits — save silently, no re-render on field change.
+  // Field edits (text/number) — save silently.
   list.querySelectorAll("[data-k][data-f]:not([type=checkbox])").forEach(el => {
     el.addEventListener("change", () => {
       const k = el.dataset.k;
@@ -690,14 +736,46 @@ function renderEditorRoleFit(host) {
     });
   });
 
-  // Checkboxes — explicit boolean, no re-render.
+  // "Normally installed" checkbox — saves and also updates existing live sessions.
   list.querySelectorAll("[data-k][data-f][type=checkbox]").forEach(el => {
     el.addEventListener("change", () => {
-      const k = el.dataset.k;
-      const f = el.dataset.f;
+      const k  = el.dataset.k;
+      const f  = el.dataset.f;
       const it = EDITOR.draft.roleFit[k];
       if (!it) return;
       it[f] = el.checked === true;
+      // Push the new normally value into all live sessions that haven't had
+      // this item explicitly overridden by a preset already.
+      if (f === "normally") {
+        for (const tail of Object.keys(STORE.sessions || {})) {
+          const s = STORE.sessions[tail];
+          if (s?.roleFit && k in s.roleFit) {
+            // Only update if the current session value still matches the OLD normally
+            // default (i.e. the user hasn't manually toggled it away from default).
+            s.roleFit[k] = it.normally;
+          }
+        }
+      }
+      editorSaveDraft();
+    });
+  });
+
+  // Per-preset installed checkboxes — checked = in roleFitOn, unchecked = not listed.
+  list.querySelectorAll("[data-rfpreset]").forEach(el => {
+    el.addEventListener("change", () => {
+      const k  = el.dataset.k;
+      const pk = el.dataset.rfpreset;
+      const pd = EDITOR.draft.presets[pk];
+      if (!pd) return;
+      if (!Array.isArray(pd.roleFitOn))  pd.roleFitOn  = [];
+      if (!Array.isArray(pd.roleFitOff)) pd.roleFitOff = [];
+
+      if (el.checked) {
+        if (!pd.roleFitOn.includes(k)) pd.roleFitOn.push(k);
+        pd.roleFitOff = pd.roleFitOff.filter(x => x !== k);
+      } else {
+        pd.roleFitOn = pd.roleFitOn.filter(x => x !== k);
+      }
       editorSaveDraft();
     });
   });
@@ -830,6 +908,8 @@ function editorExportConfig() {
     if (exportPresets[pk]) {
       exportPresets[pk].missionOn  = EDITOR.draft.presets[pk].missionOn  || [];
       exportPresets[pk].missionOff = EDITOR.draft.presets[pk].missionOff || [];
+      exportPresets[pk].roleFitOn  = EDITOR.draft.presets[pk].roleFitOn  || [];
+      exportPresets[pk].roleFitOff = EDITOR.draft.presets[pk].roleFitOff || [];
     }
   }
   push("const AC_PRESETS = " + stringifyPretty(exportPresets) + ";");
@@ -859,12 +939,14 @@ function editorExportConfig() {
   push("    if (ov.missionEquip) AC.missionEquip = ov.missionEquip;");
   push("    if (ov.stowage)      AC.stowage      = ov.stowage;");
   push("    if (ov.roleFit)      AC.roleFit      = ov.roleFit;");
-  push("    // Restore preset missionOn/missionOff overrides");
+  push("    // Restore preset missionOn/missionOff and roleFitOn/Off overrides");
   push("    if (ov.presets) {");
   push("      for (const pk of Object.keys(ov.presets)) {");
   push("        if (AC.presets[pk]) {");
   push("          if (ov.presets[pk].missionOn)  AC.presets[pk].missionOn  = ov.presets[pk].missionOn;");
   push("          if (ov.presets[pk].missionOff) AC.presets[pk].missionOff = ov.presets[pk].missionOff;");
+  push("          if (ov.presets[pk].roleFitOn)  AC.presets[pk].roleFitOn  = ov.presets[pk].roleFitOn;");
+  push("          if (ov.presets[pk].roleFitOff) AC.presets[pk].roleFitOff = ov.presets[pk].roleFitOff;");
   push("        }");
   push("      }");
   push("    }");
