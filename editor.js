@@ -15,7 +15,7 @@
  *
  * State:
  *   EDITOR.authed   — true once the custodian has logged in this session
- *   EDITOR.activeSection — "MISSION" | "STOWAGE" | "ROLEFIT"
+ *   EDITOR.activeSection — "MISSION" | "ROLEFIT"
  *   EDITOR.draft    — working copy of AC data being edited; saved on each commit
  *
  * Called from app.js renderEditor() when the Editor tab is opened.
@@ -187,9 +187,11 @@ function renderEditorLogin(host) {
    ========================= */
 
 function renderEditorMain(host) {
+  // Guard: if a stale "STOWAGE" activeSection was saved, reset to MISSION
+  if (EDITOR.activeSection === "STOWAGE") EDITOR.activeSection = "MISSION";
+
   const tabs = [
     { id: "MISSION",  label: "Mission Equipment" },
-    { id: "STOWAGE",  label: "Stowage Locations" },
     { id: "ROLEFIT",  label: "Role-Fit Equipment" }
   ];
 
@@ -242,7 +244,6 @@ function renderEditorMain(host) {
   // Render active section
   const secHost = document.getElementById("editorSectionHost");
   if (EDITOR.activeSection === "MISSION")  renderEditorMission(secHost);
-  if (EDITOR.activeSection === "STOWAGE")  renderEditorStowage(secHost);
   if (EDITOR.activeSection === "ROLEFIT")  renderEditorRoleFit(secHost);
 }
 
@@ -466,173 +467,6 @@ function renderEditorMission(host) {
       if (e.key === "Escape") { addForm.innerHTML = ""; addForm.dataset.open = "0"; }
     });
     // Normalise to uppercase as user types
-    inp.addEventListener("input", () => {
-      const pos = inp.selectionStart;
-      inp.value = inp.value.toUpperCase();
-      inp.setSelectionRange(pos, pos);
-    });
-  };
-}
-
-
-/* =========================
-   STOWAGE LOCATIONS EDITOR
-   ========================= */
-
-function renderEditorStowage(host) {
-  const stowage = EDITOR.draft.stowage;
-  const keys    = Object.keys(stowage).sort();
-
-  // Count how many mission items reference each stowage
-  const refCount = {};
-  for (const item of Object.values(EDITOR.draft.missionEquip)) {
-    refCount[item.stow] = (refCount[item.stow] || 0) + 1;
-  }
-
-  const groups = Array.from(new Set(
-    Object.values(stowage).map(s => s.group || "Other")
-  )).sort();
-
-  host.innerHTML = `
-    <div class="small muted" style="margin-bottom:10px;">
-      ${keys.length} location${keys.length === 1 ? "" : "s"}.
-      Adding or removing stowage locations is rare — they are defined by the airframe.
-    </div>
-    <div class="callout" style="margin-bottom:12px; font-size:13px;">
-      <strong>What stowage locations do:</strong> Each location has an arm (mm) that is used
-      to calculate the CG contribution of any mission equipment assigned to it.
-      Adding a new location here makes it available in the Mission Equipment stowage dropdown.<br><br>
-      <strong>Load Planning zones are separate.</strong> The discrete zones shown on the Load Planning
-      tab (SAR Cabinet, Ramp Shelves, Port FWD Shelves) are defined in the app code and are not
-      driven by this list. A new stowage location will <em>not</em> automatically appear there —
-      that requires a code change to app.js.
-    </div>
-
-    <div id="stowageItemList"></div>
-
-    <div class="hr"></div>
-    <div id="stowageAddForm"></div>
-    <div class="row">
-      <button class="btn good" id="stowageAddBtn">+ Add New Stowage Location</button>
-    </div>
-  `;
-
-  const _oldDlS = document.getElementById("stowageGroupOptions");
-  if (_oldDlS) _oldDlS.remove();
-  const _dlS = document.createElement("datalist");
-  _dlS.id = "stowageGroupOptions";
-  _dlS.innerHTML = groups.map(g => `<option value="${escHtml(g)}">`).join("");
-  document.body.appendChild(_dlS);
-
-  const list = document.getElementById("stowageItemList");
-
-  for (const k of keys) {
-    const loc = stowage[k];
-    const refs = refCount[k] || 0;
-    const row = document.createElement("div");
-    row.className = "card";
-    row.style.marginBottom = "8px";
-    row.style.padding = "12px";
-
-    row.innerHTML = `
-      <div class="row" style="align-items:flex-end;">
-        <div style="flex: 2 1 240px;">
-          <div class="lbl">Display Name</div>
-          <input type="text" data-k="${k}" data-f="name" value="${escHtml(loc.name)}">
-        </div>
-        <div style="flex: 0 0 110px;">
-          <div class="lbl">Arm (mm)</div>
-          <input type="number" step="1" data-k="${k}" data-f="arm" value="${loc.arm}">
-        </div>
-        <div style="flex: 1 1 160px;">
-          <div class="lbl">Group</div>
-          <input type="text" data-k="${k}" data-f="group" value="${escHtml(loc.group || "")}"
-                 list="stowageGroupOptions">
-        </div>
-      </div>
-      <div class="row" style="margin-top:10px; align-items:center;">
-        <div class="small mono muted" style="flex: 2 1 auto;">
-          ID: ${k} · Referenced by ${refs} mission item${refs === 1 ? "" : "s"}
-        </div>
-        <button class="btn bad" data-delk="${k}" style="flex: 0 0 auto;"
-                ${refs > 0 ? "disabled title='Cannot delete — still referenced by mission equipment'" : ""}>
-          Delete
-        </button>
-      </div>
-    `;
-    list.appendChild(row);
-  }
-
-  // Field edits — save silently, no re-render on field change.
-  list.querySelectorAll("[data-k][data-f]").forEach(el => {
-    el.addEventListener("change", () => {
-      const k = el.dataset.k;
-      const f = el.dataset.f;
-      const loc = EDITOR.draft.stowage[k];
-      if (!loc) return;
-      if (f === "arm") loc.arm = parseInt(el.value, 10) || 0;
-      else             loc[f] = el.value;
-      editorSaveDraft();
-    });
-  });
-
-  // Delete
-  list.querySelectorAll("[data-delk]").forEach(btn => {
-    btn.onclick = () => {
-      const k = btn.dataset.delk;
-      const loc = EDITOR.draft.stowage[k];
-      if (!confirm(`Delete stowage location "${loc?.name || k}"?`)) return;
-      delete EDITOR.draft.stowage[k];
-      editorSaveDraft();
-      renderEditor();
-      if (typeof render === "function") render();
-    };
-  });
-
-  // Add — inline form
-  document.getElementById("stowageAddBtn").onclick = () => {
-    const addForm = document.getElementById("stowageAddForm");
-    if (!addForm) return;
-    if (addForm.dataset.open === "1") {
-      addForm.innerHTML = "";
-      addForm.dataset.open = "0";
-      return;
-    }
-    addForm.dataset.open = "1";
-    addForm.innerHTML = `
-      <div class="card" style="margin-bottom:10px; padding:12px; border:2px solid var(--accent,#4a9eff);">
-        <div class="lbl">New location key (UPPERCASE, numbers, underscores only)</div>
-        <div class="row" style="gap:8px; align-items:center;">
-          <input type="text" id="stowNewKeyInput" placeholder="e.g. NEW_LOCATION"
-                 style="flex:1; text-transform:uppercase; font-family:monospace;">
-          <button class="btn good" id="stowNewKeyConfirm">Add</button>
-          <button class="btn" id="stowNewKeyCancel">Cancel</button>
-        </div>
-        <div id="stowNewKeyErr" class="small" style="color:var(--bad,#e55); margin-top:4px; min-height:16px;"></div>
-      </div>
-    `;
-    const inp = document.getElementById("stowNewKeyInput");
-    const err = document.getElementById("stowNewKeyErr");
-    inp.focus();
-
-    const tryAdd = () => {
-      let key = inp.value.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_");
-      if (!key) { err.textContent = "Key cannot be empty."; return; }
-      if (Object.keys(EDITOR.draft.stowage).includes(key)) {
-        err.textContent = `Key "${key}" is already in use.`; return;
-      }
-      EDITOR.draft.stowage[key] = { name: "New Stowage Location", arm: 0, group: "" };
-      editorSaveDraft();
-      renderEditor();
-      if (typeof render === "function") render();
-    };
-
-    document.getElementById("stowNewKeyConfirm").onclick = tryAdd;
-    document.getElementById("stowNewKeyCancel").onclick  = () => { addForm.innerHTML = ""; addForm.dataset.open = "0"; };
-    inp.addEventListener("keydown", (e) => {
-      if (e.key === "Enter")  tryAdd();
-      if (e.key === "Escape") { addForm.innerHTML = ""; addForm.dataset.open = "0"; }
-    });
     inp.addEventListener("input", () => {
       const pos = inp.selectionStart;
       inp.value = inp.value.toUpperCase();
