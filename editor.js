@@ -266,7 +266,9 @@ function renderEditorMission(host) {
     stowByGroup[g].push({ id, name: loc.name, arm: loc.arm });
   }
   const stowOptionsHtml = (selectedId) => {
+    const custSel = (selectedId === "CUSTOM") ? "selected" : "";
     let out = '<option value="">— pick stowage —</option>';
+    out += `<option value="CUSTOM" ${custSel}>— Custom CG arm —</option>`;
     for (const g of Object.keys(stowByGroup).sort()) {
       out += `<optgroup label="${g}">`;
       for (const s of stowByGroup[g].sort((a,b) => a.name.localeCompare(b.name))) {
@@ -348,6 +350,11 @@ function renderEditorMission(host) {
             ${stowOptionsHtml(it.stow)}
           </select>
         </div>
+        <div style="flex: 0 0 110px; display:${it.stow === "CUSTOM" ? "block" : "none"};" data-customarm-wrap="${k}">
+          <div class="lbl">Arm (mm)</div>
+          <input type="number" step="1" data-k="${k}" data-f="customArm"
+                 value="${it.customArm ?? 8000}">
+        </div>
         <div style="flex: 1 1 160px;">
           <div class="lbl">Group</div>
           <input type="text" data-k="${k}" data-f="group" value="${escHtml(it.group || "")}"
@@ -373,8 +380,19 @@ function renderEditorMission(host) {
       const f    = el.dataset.f;
       const item = EDITOR.draft.missionEquip[k];
       if (!item) return;
-      if (f === "w") item.w = parseFloat(el.value) || 0;
-      else           item[f] = el.value;
+
+      if (f === "w") {
+        item.w = parseFloat(el.value) || 0;
+      } else if (f === "customArm") {
+        item.customArm = parseInt(el.value, 10) || 0;
+      } else if (f === "stow") {
+        item[f] = el.value;
+        // Show/hide the custom arm input for this item
+        const wrap = list.querySelector(`[data-customarm-wrap="${k}"]`);
+        if (wrap) wrap.style.display = (el.value === "CUSTOM") ? "block" : "none";
+      } else {
+        item[f] = el.value;
+      }
       editorSaveDraft();
     });
   });
