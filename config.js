@@ -393,28 +393,43 @@ const AC_PAX_SEATS = {
 
 // SECTION 7 — STOWAGE LOCATIONS
 const AC_STOWAGE = {
-  "SAR_CABINET_TOP": {
-    "name": "SAR Cabinet Top",
+  "SAR_CABINET_FWD_TOP": {
+    "name": "SAR Cabinet FWD Top (Zone A)",
+    "arm": 6275,
+    "group": "SAR Cabinet"
+  },
+  "SAR_CABINET_FWD_BTM": {
+    "name": "SAR Cabinet FWD Btm (Zone B)",
     "arm": 6275,
     "group": "SAR Cabinet"
   },
   "SAR_CABINET_UPPER": {
-    "name": "SAR Cabinet Upper",
+    "name": "SAR Cabinet Upper (Zone C)",
     "arm": 6275,
     "group": "SAR Cabinet"
   },
-  "SAR_CABINET_MIDDLE": {
-    "name": "SAR Cabinet Middle",
-    "arm": 6275,
-    "group": "SAR Cabinet"
-  },
-  "SAR_CABINET_BOTTOM": {
-    "name": "SAR Cabinet Bottom",
+  "SAR_CABINET_TOP": {
+    "name": "SAR Cabinet Top (Zone D)",
     "arm": 6275,
     "group": "SAR Cabinet"
   },
   "LOCKBOX_TOP": {
-    "name": "Lockbox Top Shelf",
+    "name": "Lockbox Top Shelf (Zone E)",
+    "arm": 6275,
+    "group": "SAR Cabinet"
+  },
+  "LOCKBOX_BTM": {
+    "name": "Lockbox Bottom Shelf (Zone F)",
+    "arm": 6275,
+    "group": "SAR Cabinet"
+  },
+  "SAR_CABINET_MIDDLE": {
+    "name": "SAR Cabinet Middle (Zone G)",
+    "arm": 6275,
+    "group": "SAR Cabinet"
+  },
+  "SAR_CABINET_BOTTOM": {
+    "name": "SAR Cabinet Bottom (Zone H)",
     "arm": 6275,
     "group": "SAR Cabinet"
   },
@@ -487,11 +502,6 @@ const AC_STOWAGE = {
     "name": "Ramp Shelf Stbd Aft",
     "arm": 13228,
     "group": "Ramp"
-  },
-  "NEW_SPOT": {
-    "name": "snack shelf",
-    "arm": 8000,
-    "group": "Other"
   }
 };
 
