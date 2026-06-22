@@ -1,6 +1,6 @@
 /**
  * config.js — CH-149 - 615 W&B App
- * Exported by the Custodian Editor on 2026-06-21T22:15:59.174Z
+ * Exported by the Custodian Editor on 2026-06-22T04:00:47.904Z
  *
  * This file was generated from the editor. It contains the full
  * current state of all aircraft data. Rename to config.js and
@@ -808,21 +808,21 @@ const AC_MISSION_EQUIP = {
     "name": "AC B25",
     "w": 20,
     "stow": "PORT_FWD_SHELF_MID",
-    "group": "Misc / Mission Kits",
+    "group": "Personal Equipment",
     "on": false
   },
   "ME_FO_B25": {
     "name": "FO B25",
     "w": 20,
     "stow": "PORT_FWD_SHELF_TOP",
-    "group": "Misc / Mission Kits",
+    "group": "Personal Equipment",
     "on": false
   },
   "ME_FE_B25": {
     "name": "FE B25",
     "w": 20,
     "stow": "PORT_FWD_SHELF_BOT",
-    "group": "Misc / Mission Kits",
+    "group": "Personal Equipment",
     "on": false,
     "customArm": 6262
   },
@@ -830,14 +830,14 @@ const AC_MISSION_EQUIP = {
     "name": "Team Lead B25/Dive Gear",
     "w": 40,
     "stow": "RAMP_PORT_FWD",
-    "group": "Misc / Mission Kits",
+    "group": "Personal Equipment",
     "on": false
   },
   "ME_STTM_B25": {
     "name": "Team Member B25/Dive Gear",
     "w": 40,
     "stow": "RAMP_STBD_FWD",
-    "group": "Misc / Mission Kits",
+    "group": "Personal Equipment",
     "on": false
   },
   "ME_AC_RON_BAG": {
