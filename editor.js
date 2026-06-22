@@ -905,17 +905,55 @@ function renderEditorRoleFit(host) {
 function editorExportConfig() {
   // Read the current config.js from disk is not possible in-browser;
   // we rebuild the file content from AC values.
+
+  // --- CONFIG VERSIONING ---
+  // Read the version from the config currently loaded in memory and increment.
+  // Single-custodian workflow: no concurrent edits, so a monotonic counter
+  // carried inside the file is safe and needs no Git dependency.
+  const prevMeta = (AC.meta && typeof AC.meta === "object") ? AC.meta : {};
+  const prevVersion = Number.isFinite(prevMeta.configVersion) ? prevMeta.configVersion : 0;
+  const newVersion = prevVersion + 1;
+  const nowIso = new Date().toISOString();
+
+  let note = prompt(
+    "Optional: describe what changed in config v" + newVersion + ".\n" +
+    "(Leave blank to auto-version with no note. The version increments either way.)",
+    ""
+  );
+  // prompt returns null if cancelled — treat as "export anyway, no note"
+  note = (note == null) ? "" : note.trim();
+
+  // Build new changelog (newest-first), capped to keep the file from growing forever.
+  const prevLog = Array.isArray(prevMeta.changelog) ? prevMeta.changelog : [];
+  const newLog = [
+    { version: newVersion, at: nowIso, note: note || "(no note provided)" },
+    ...prevLog
+  ].slice(0, 50);
+
+  const newMeta = {
+    configVersion: newVersion,
+    configReleasedAt: nowIso,
+    changelog: newLog
+  };
+  // Reflect into live AC so the running app shows the new version immediately
+  // after export (and so a re-export from the same session keeps incrementing).
+  AC.meta = newMeta;
+
   const lines = [];
   const push  = (s) => lines.push(s);
 
   push("/**");
   push(" * config.js — CH-149 - 615 W&B App");
-  push(" * Exported by the Custodian Editor on " + new Date().toISOString());
+  push(" * Exported by the Custodian Editor on " + nowIso);
+  push(" * Config data version: " + newVersion);
   push(" *");
   push(" * This file was generated from the editor. It contains the full");
   push(" * current state of all aircraft data. Rename to config.js and");
   push(" * replace your existing config.js to publish changes.");
   push(" */");
+  push("");
+  push("// SECTION 11 — CONFIG META (data version, separate from app code version)");
+  push("const AC_META = " + stringifyPretty(newMeta) + ";");
   push("");
   push("// SECTION 1 — TAIL NUMBERS");
   push("const AC_TAILS = " + stringifyPretty(AC.tails) + ";");
@@ -966,6 +1004,7 @@ function editorExportConfig() {
   push("");
   push("// EXPORT");
   push("const AC = {");
+  push("  meta:          AC_META,");
   push("  auth:          AC_AUTH,");
   push("  tails:         AC_TAILS,");
   push("  envelope:      AC_ENVELOPE,");

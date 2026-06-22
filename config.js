@@ -1250,8 +1250,25 @@ const AC_PRESETS = {
   }
 };
 
+// SECTION 11 — CONFIG META (data version, separate from app code version)
+// configVersion increments by 1 on every custodian export. changelog is
+// newest-first. This is the DATA version; APP_VERSION (persist.js) is the
+// CODE version. The two are independent on purpose.
+const AC_META = {
+  "configVersion": 1,
+  "configReleasedAt": "2026-06-22T04:00:47.904Z",
+  "changelog": [
+    {
+      "version": 1,
+      "at": "2026-06-22T04:00:47.904Z",
+      "note": "Baseline configuration."
+    }
+  ]
+};
+
 // EXPORT
 const AC = {
+  meta:          AC_META,
   auth:          AC_AUTH,
   tails:         AC_TAILS,
   envelope:      AC_ENVELOPE,

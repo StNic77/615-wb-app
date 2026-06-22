@@ -1218,8 +1218,24 @@ class PDFContext {
       `CH-149 - 615 · Tail ${this.tail} · Generated ${footDate} ${footHH}:${footMM}Z`,
       this.pageW / 2, this.y, { align: "center" }
     );
+    this.y += 4.5;
+    // Line 2: version provenance — ties this sortie record to the exact data
+    // version it was computed against (config) and the app build (code).
+    {
+      const cfgV = (typeof AC !== "undefined" && AC.meta && Number.isFinite(AC.meta.configVersion))
+        ? AC.meta.configVersion : "?";
+      const cfgRel = (typeof AC !== "undefined" && AC.meta && AC.meta.configReleasedAt)
+        ? new Date(AC.meta.configReleasedAt).toISOString().slice(0, 10) : "—";
+      const appV = (typeof APP_VERSION !== "undefined") ? APP_VERSION : "?";
+      this.setFont("normal", 7);
+      this.setColor(...this.C_MED);
+      this.text(
+        `Config data v${cfgV} (released ${cfgRel}) · App v${appV} · Data source: DLTP 101C-615`,
+        this.pageW / 2, this.y, { align: "center" }
+      );
+    }
     this.y += 5;
-    // Line 2: disclaimer — italic, muted
+    // Line 3: disclaimer — italic, muted
     this.setFont("italic", 7.5);
     this.setColor(...this.C_MED);
     this.text(

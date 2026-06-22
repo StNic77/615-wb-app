@@ -21,7 +21,7 @@
       <div class="dot"></div>
       <div class="title">
         <b>CH-149-615 Weight &amp; Balance</b>
-        <span>Data from DLTP 101C-615</span>
+        <span>Data from DLTP 101C-615 <span id="appVersionTag" class="mono small"></span></span>
       </div>
     </div>
 
@@ -53,6 +53,15 @@
       <div class="row">
         <button class="btn" id="btnHomeRefresh">Refresh display</button>
         <div class="small">Tip: once you select a tail, Home becomes less important — you can still come back anytime.</div>
+      </div>
+      <div class="hr"></div>
+      <div class="row">
+        <div class="small" id="configVersionInfo"></div>
+      </div>
+      <div class="hr"></div>
+      <div class="row">
+        <button class="btn bad" id="btnEndSession">End Session &amp; Clear All</button>
+        <div class="small" id="sessionPersistInfo">Sessions are saved automatically and survive the app being closed. End Session wipes all tails back to defaults.</div>
       </div>
     </div>
 
@@ -527,6 +536,7 @@
 
 <script src="jspdf.umd.min.js"></script>
 <script src="config.js"></script>
+<script src="persist.js"></script>
 <script src="mcdu.js"></script>
 <script src="compute.js"></script>
 <script src="pdf.js"></script>

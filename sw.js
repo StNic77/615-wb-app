@@ -4,9 +4,10 @@
 //   everything else → cache-first (stable assets: app logic, libraries, images)
 //
 // To force all clients to pick up a new service worker after a push,
-// increment the CACHE_VERSION string.
+// increment the CACHE_VERSION string. Keep this in step with APP_VERSION
+// in persist.js so a release reliably invalidates stale cached assets.
 
-const CACHE_VERSION = 'wb615-v1';
+const CACHE_VERSION = 'wb615-v0.1.0';
 
 const STATIC_ASSETS = [
   './',
@@ -17,6 +18,8 @@ const STATIC_ASSETS = [
   './pdf.js',
   './editor.js',
   './mcdu.js',
+  './persist.js',
+  './manifest.json',
   './jspdf.umd.min.js',
   './icon-192.png',
   './icon-512.png',

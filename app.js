@@ -641,6 +641,31 @@ function renderHome(){
   };
 
   document.getElementById("btnHomeRefresh").onclick = ()=> render();
+
+  const btnEnd = document.getElementById("btnEndSession");
+  if (btnEnd){
+    btnEnd.onclick = ()=>{
+      if (!confirm("End session and clear ALL tails back to defaults? This cannot be undone.")) return;
+      if (typeof endPersistedSession === "function") endPersistedSession();
+      setTab("HOME");
+    };
+  }
+
+  // Show config (data) version + latest changelog note.
+  const cinfo = document.getElementById("configVersionInfo");
+  if (cinfo && typeof AC !== "undefined" && AC.meta){
+    const v = AC.meta.configVersion;
+    const log = Array.isArray(AC.meta.changelog) ? AC.meta.changelog : [];
+    const latest = log[0];
+    let txt = "Config data version: v" + v;
+    if (AC.meta.configReleasedAt){
+      txt += " (released " + new Date(AC.meta.configReleasedAt).toLocaleString() + ")";
+    }
+    if (latest && latest.note){
+      txt += " — " + latest.note;
+    }
+    cinfo.textContent = txt;
+  }
 }
 
 /* =========================
@@ -3102,6 +3127,10 @@ function render(){
 
   // Enable/disable Home feel: If a tail is selected, Home is still available as a tab
   // (You said either way is fine; this keeps it available while defaulting you to ACCEPT on selection.)
+
+  // Autosave the full session state after every render so the app survives
+  // being swiped closed on the EFB. No-op if persist.js isn't loaded.
+  if (typeof persistSession === "function") persistSession();
 }
 
 /* =========================
@@ -3109,8 +3138,24 @@ function render(){
    ========================= */
 
 initTails();
+// Restore any saved session (survives swipe-closed). Must run after initTails()
+// has built the default sessions, so a valid snapshot overwrites the defaults.
+if (typeof restoreSession === "function") restoreSession();
 buildTabs();
 initThemeToggle();
+
+// Stamp the app (code) version and config (data) version into the header.
+(function(){
+  const tag = document.getElementById("appVersionTag");
+  if (!tag) return;
+  let s = "";
+  if (typeof APP_VERSION !== "undefined") s += "· app v" + APP_VERSION;
+  if (typeof AC !== "undefined" && AC.meta && Number.isFinite(AC.meta.configVersion)){
+    s += " · config v" + AC.meta.configVersion;
+  }
+  tag.textContent = s;
+})();
+
 render();
 
 // keep envelope responsive
