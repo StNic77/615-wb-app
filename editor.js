@@ -187,11 +187,9 @@ function renderEditorLogin(host) {
    ========================= */
 
 function renderEditorMain(host) {
-  // Guard: if a stale "STOWAGE" activeSection was saved, reset to MISSION
-  if (EDITOR.activeSection === "STOWAGE") EDITOR.activeSection = "MISSION";
-
   const tabs = [
     { id: "MISSION",  label: "Mission Equipment" },
+    { id: "STOWAGE",  label: "Stowage Locations" },
     { id: "ROLEFIT",  label: "Role-Fit Equipment" }
   ];
 
@@ -244,6 +242,7 @@ function renderEditorMain(host) {
   // Render active section
   const secHost = document.getElementById("editorSectionHost");
   if (EDITOR.activeSection === "MISSION")  renderEditorMission(secHost);
+  if (EDITOR.activeSection === "STOWAGE")  renderEditorStowage(secHost);
   if (EDITOR.activeSection === "ROLEFIT")  renderEditorRoleFit(secHost);
 }
 
@@ -256,7 +255,13 @@ function renderEditorMission(host) {
   const items   = EDITOR.draft.missionEquip;
   const stowage = EDITOR.draft.stowage;
 
-  const keys = Object.keys(items).sort();
+  // Mission Equipment tab shows sortie kit only — stowage LOCATIONS
+  // (port-fwd shelves, ramp shelves, overhead bins) live in their own
+  // Stowage Locations tab. They remain AC.missionEquip entries; this is
+  // purely an editor-view split.
+  const keys = Object.keys(items)
+    .filter(k => (items[k].group || "") !== "Stowage")
+    .sort();
 
   // Build stowage dropdown options grouped by stowage group
   const stowByGroup = {};
@@ -490,6 +495,198 @@ function renderEditorMission(host) {
       inp.value = inp.value.toUpperCase();
       inp.setSelectionRange(pos, pos);
     });
+  };
+}
+
+
+/* =========================
+   STOWAGE LOCATIONS EDITOR
+   Permanently-installed stowage structure (port-fwd shelves, ramp shelves,
+   overhead bins) — items with group "Stowage". These are AC.missionEquip
+   entries (so load planning, gating, and the overload guard keep working),
+   but they are edited here, separated from per-sortie mission kit. The SAR
+   cabinet is excluded — it is a role-fit item, edited in Role-Fit.
+   ========================= */
+
+function renderEditorStowage(host) {
+  const items   = EDITOR.draft.missionEquip;
+  const stowage = EDITOR.draft.stowage;
+
+  const keys = Object.keys(items)
+    .filter(k => (items[k].group || "") === "Stowage")
+    .sort();
+
+  const stowByGroup = {};
+  for (const [id, loc] of Object.entries(stowage)) {
+    const g = loc.group || "Other";
+    if (!stowByGroup[g]) stowByGroup[g] = [];
+    stowByGroup[g].push({ id, name: loc.name, arm: loc.arm });
+  }
+  const stowOptionsHtml = (selectedId) => {
+    let out = '<option value="">— pick stowage —</option>';
+    for (const g of Object.keys(stowByGroup).sort()) {
+      out += `<optgroup label="${g}">`;
+      for (const s of stowByGroup[g].sort((a,b) => a.name.localeCompare(b.name))) {
+        const sel = (s.id === selectedId) ? "selected" : "";
+        out += `<option value="${s.id}" ${sel}>${s.name} (${s.arm} mm)</option>`;
+      }
+      out += "</optgroup>";
+    }
+    return out;
+  };
+
+  host.innerHTML = `
+    <div class="small muted" style="margin-bottom:10px;">
+      ${keys.length} stowage location${keys.length === 1 ? "" : "s"}.
+      Permanently-installed shelves and bins. Preset checkboxes set whether the
+      location is available (deployed) for that mission configuration.
+      The SAR cabinet is managed under Role-Fit.
+    </div>
+
+    <div id="stowageItemList"></div>
+
+    <div class="hr"></div>
+    <div id="stowageAddForm"></div>
+    <div class="row">
+      <button class="btn good" id="stowageAddBtn">+ Add New Stowage Location</button>
+    </div>
+  `;
+
+  const list = document.getElementById("stowageItemList");
+
+  const presetKeys = Object.keys(EDITOR.draft.presets);
+  const isInPreset = (k, pk) => {
+    const mOn = EDITOR.draft.presets[pk]?.missionOn;
+    return Array.isArray(mOn) && mOn.includes(k);
+  };
+
+  for (const k of keys) {
+    const it = items[k];
+    const row = document.createElement("div");
+    row.className = "card";
+    row.style.marginBottom = "8px";
+    row.style.padding = "12px";
+
+    const presetChecks = presetKeys.map(pk => {
+      const pName = EDITOR.draft.presets[pk]?.name || pk;
+      const chk   = isInPreset(k, pk) ? "checked" : "";
+      return `<label class="small" style="display:flex;align-items:center;gap:4px;white-space:nowrap;cursor:pointer;">
+        <input type="checkbox" data-k="${k}" data-preset="${pk}" ${chk} style="width:auto;cursor:pointer;">
+        ${escHtml(pName)}
+      </label>`;
+    }).join("");
+
+    row.innerHTML = `
+      <div class="row" style="align-items:flex-end;">
+        <div style="flex: 2 1 240px;">
+          <div class="lbl">Location Name</div>
+          <input type="text" data-k="${k}" data-f="name" value="${escHtml(it.name)}">
+        </div>
+        <div style="flex: 2 1 240px;">
+          <div class="lbl">Stowage Reference (arm)</div>
+          <select data-k="${k}" data-f="stow">
+            ${stowOptionsHtml(it.stow)}
+          </select>
+        </div>
+      </div>
+      <div style="margin-top:8px;">
+        <div class="lbl">Available (deployed) in preset:</div>
+        <div class="row" style="gap:14px; flex-wrap:wrap; margin-top:4px;">
+          ${presetChecks}
+        </div>
+      </div>
+      <div class="row" style="margin-top:8px;">
+        <button class="btn bad" data-delk="${k}" style="flex:0 0 auto;">Delete</button>
+      </div>
+    `;
+    list.appendChild(row);
+  }
+
+  if (!keys.length) {
+    list.innerHTML = `<div class="small muted">No stowage locations defined yet.</div>`;
+  }
+
+  list.querySelectorAll("[data-k][data-f]").forEach(el => {
+    el.addEventListener("change", () => {
+      const k    = el.dataset.k;
+      const f    = el.dataset.f;
+      const item = EDITOR.draft.missionEquip[k];
+      if (!item) return;
+      item[f] = el.value;
+      editorSaveDraft();
+    });
+  });
+
+  list.querySelectorAll("[data-preset]").forEach(el => {
+    el.addEventListener("change", () => {
+      const k  = el.dataset.k;
+      const pk = el.dataset.preset;
+      const pd = EDITOR.draft.presets[pk];
+      if (!pd) return;
+      if (!Array.isArray(pd.missionOn))  pd.missionOn  = [];
+      if (!Array.isArray(pd.missionOff)) pd.missionOff = [];
+      if (el.checked) {
+        if (!pd.missionOn.includes(k)) pd.missionOn.push(k);
+        pd.missionOff = pd.missionOff.filter(x => x !== k);
+      } else {
+        pd.missionOn = pd.missionOn.filter(x => x !== k);
+      }
+      editorSaveDraft();
+    });
+  });
+
+  list.querySelectorAll("[data-delk]").forEach(btn => {
+    btn.onclick = () => {
+      const k = btn.dataset.delk;
+      const it = EDITOR.draft.missionEquip[k];
+      if (!confirm(`Delete stowage location "${it?.name || k}"?\n\nThis removes it from the library.`)) return;
+      delete EDITOR.draft.missionEquip[k];
+      editorSaveDraft();
+      renderEditor();
+      if (typeof render === "function") render();
+    };
+  });
+
+  document.getElementById("stowageAddBtn").onclick = () => {
+    const addForm = document.getElementById("stowageAddForm");
+    if (!addForm) return;
+    if (addForm.dataset.open === "1") {
+      addForm.innerHTML = ""; addForm.dataset.open = "0"; return;
+    }
+    addForm.dataset.open = "1";
+    addForm.innerHTML = `
+      <div class="card" style="margin-bottom:10px; padding:12px; border:2px solid var(--accent,#4a9eff);">
+        <div class="lbl">New stowage key (UPPERCASE, numbers, underscores only)</div>
+        <div class="row" style="gap:8px; align-items:center;">
+          <input type="text" id="stowageNewKeyInput" placeholder="e.g. ME_NEW_SHELF"
+                 style="flex:1; text-transform:uppercase; font-family:monospace;">
+          <button class="btn good" id="stowageNewKeyConfirm">Add</button>
+          <button class="btn" id="stowageNewKeyCancel">Cancel</button>
+        </div>
+        <div id="stowageNewKeyErr" class="small" style="color:var(--bad,#e55); margin-top:4px; min-height:16px;"></div>
+      </div>
+    `;
+    const inp = document.getElementById("stowageNewKeyInput");
+    const err = document.getElementById("stowageNewKeyErr");
+    document.getElementById("stowageNewKeyConfirm").onclick = () => {
+      let key = inp.value.trim().toUpperCase().replace(/[^A-Z0-9_]/g, "_");
+      if (!key) { err.textContent = "Key cannot be empty."; return; }
+      if (Object.keys(EDITOR.draft.missionEquip).includes(key)) {
+        err.textContent = `Key "${key}" is already in use.`; return;
+      }
+      const firstStow = Object.keys(EDITOR.draft.stowage)[0] || "";
+      EDITOR.draft.missionEquip[key] = {
+        name: "New Stowage Location", w: 0, stow: firstStow, group: "Stowage", on: false
+      };
+      editorSaveDraft();
+      renderEditor();
+      if (typeof render === "function") render();
+    };
+    document.getElementById("stowageNewKeyCancel").onclick = () => {
+      addForm.innerHTML = ""; addForm.dataset.open = "0";
+    };
+    inp.focus();
+    inp.addEventListener("input", () => { inp.value = inp.value.toUpperCase(); });
   };
 }
 

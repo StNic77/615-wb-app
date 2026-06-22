@@ -24,6 +24,22 @@ function getMissionItem(key){
   const it = AC.missionEquip[key];
   if (!it) return null;
 
+  // Custom CG arm — item placed at a manually specified arm, no named stowage location
+  if (it.stow === "CUSTOM") {
+    const arm = it.customArm || 0;
+    return {
+      key,
+      name:      it.name,
+      w:         it.w,
+      arm,
+      stow:      `Custom (${arm} mm)`,
+      stowId:    "CUSTOM",
+      stowGroup: "Custom",
+      group:     it.group,
+      on:        it.on
+    };
+  }
+
   const loc = AC.stowage[it.stow];
   return {
     key,
@@ -68,11 +84,14 @@ function computeMissionTotals(s){
 }
 
 function computeSeatTotals(s){
-  // installed seat structures + occupants (90 kg each)
-  const personW = 90;
+  // Occupant standard weights (per RFM):
+  //   CREW standard weight = 90.7 kg (200 lb)
+  //   PAX  standard weight = 90.00 kg
+  const crewW = 90.7;  // RFM: crew standard weight is 90.7 kg
+  const paxW  = 90.0;  // RFM: PAX standard weight is 90.00 kg
   let w=0, m=0;
 
-  // crew seats
+  // crew seats — occupants at crew standard weight (90.7 kg)
   for (const k of Object.keys(AC.crewSeats)){
     if (s.seats[k]){
       const seat = AC.crewSeats[k];
@@ -80,11 +99,11 @@ function computeSeatTotals(s){
       m += seat.wSeat * seat.arm;
     }
     if (s.occupants[k]){
-      w += personW;
-      m += personW * (AC.crewSeats[k]?.arm ?? AC.paxSeats[k]?.arm ?? 8000);
+      w += crewW;
+      m += crewW * (AC.crewSeats[k]?.arm ?? AC.paxSeats[k]?.arm ?? 8000);
     }
   }
-  // pax seats
+  // pax seats — occupants at PAX standard weight (90.00 kg)
   for (const k of Object.keys(AC.paxSeats)){
     if (s.seats[k]){
       const seat = AC.paxSeats[k];
@@ -92,8 +111,8 @@ function computeSeatTotals(s){
       m += seat.wSeat * seat.arm;
     }
     if (s.occupants[k]){
-      w += personW;
-      m += personW * (AC.paxSeats[k]?.arm ?? 8000);
+      w += paxW;
+      m += paxW * (AC.paxSeats[k]?.arm ?? 8000);
     }
   }
   return {w, m};
@@ -201,10 +220,12 @@ function computeBurnTrack(tail){
   const s = STORE.sessions[tail];
   if (!s) return [];
 
-  // Operating state doesn't change during burn — capture once.
+  // Non-fuel state doesn't change during burn — capture once.
+  // Use full non-fuel weight (OW + cargo + bay) and the TRUE moment,
+  // not a reconstruction from rounded CG.
   const wb0     = computeWB(tail);
-  const opW     = wb0.opW;
-  const opM     = opW * wb0.opCG;
+  const baseW   = wb0.nonFuelW;
+  const baseM   = wb0.nonFuelM;
 
   const fuelDep  = roundKg(s.fuel?.total ?? 0);
   const fuelLdg  = roundKg(Math.max(0, Math.min(s.fuel?.landing ?? 300, fuelDep)));
@@ -219,8 +240,8 @@ function computeBurnTrack(tail){
       fw += kg;
       fm += kg * arm;
     }
-    const w  = roundKg(opW + fw);
-    const m  = opM + fm;
+    const w  = roundKg(baseW + fw);
+    const m  = baseM + fm;
     const cg = roundMm(cgFromMoment(w, m) || 0);
     return { w, cg, fuel: roundKg(fw) };
   };
@@ -299,7 +320,7 @@ function computeWB(tail){
   })();
 
   // Fuel
-  const MAX_FUEL_KG = AC.maxFuelKg || 4152; // hard physical cap (see config.js)
+  const MAX_FUEL_KG = AC.maxFuelKg; // hard physical cap (see config.js)
 
   // ---- Hard physical fuel cap (does not change allowance logic; prevents impossible fuel) ----
   if (!s.fuel) s.fuel = { total: 0, tanks: {} };
@@ -341,15 +362,17 @@ function computeWB(tail){
   const fuel = computeFuelTotals(s);
 
 
-  // ✅ OPERATING = everything except fuel
-  const opW = roundKg(basicW + rf.w + me.w + st.w + bay.w + cargo.w + zones.w);
-  const opM = basicM + rf.m + me.m + st.m + bay.m + cargo.m + zones.m;
+  // ✅ OPERATING WEIGHT (per RFM): Basic + selected items (role-fit, mission equip)
+  //    + crew/baggage (seats & occupants) + mission stowages (zones).
+  //    Cargo and Bays are TACTICAL PAYLOAD — excluded from OW, added at AUW.
+  const opW = roundKg(basicW + rf.w + me.w + st.w + zones.w);
+  const opM = basicM + rf.m + me.m + st.m + zones.m;
   const opCG = roundMm(cgFromMoment(opW, opM) || 0);
 
 
-  // ✅ AUW = Operating + Fuel
-  const auw = roundKg(opW + fuel.w);
-  const auwM = opM + fuel.m;
+  // ✅ AUW = Operating Weight + Payload (Cargo + Bays) + Fuel
+  const auw = roundKg(opW + bay.w + cargo.w + fuel.w);
+  const auwM = opM + bay.m + cargo.m + fuel.m;
   const auwCG = roundMm(cgFromMoment(auw, auwM) || 0);
 
   // Envelope checks
@@ -365,13 +388,21 @@ function computeWB(tail){
 
   const band = cgBand(auwCG);
 
+  // Non-fuel totals (OW + tactical payload), with TRUE unrounded moment.
+  // Used by the burn track (holds non-fuel constant, varies fuel) and the
+  // PDF, so neither has to reconstruct moment from a rounded CG.
+  const nonFuelW = roundKg(opW + bay.w + cargo.w);
+  const nonFuelM = opM + bay.m + cargo.m;
+
   return {
     basicW, basicCG,
-    opW, opCG,
+    opW, opCG, opM,                 // opM = true unrounded OW moment
+    nonFuelW, nonFuelM,             // OW + cargo + bay (no fuel), true moment
     fuelTotal: roundKg(s.fuel.total || 0),
     fuelTanks: {...s.fuel.tanks},
-    cabinTotal: roundKg(bay.w),
-        cargoTotal: roundKg(cargo.w),
+    bayTotal:  roundKg(bay.w),
+    cabinTotal: roundKg(bay.w),     // retained alias (legacy callers)
+    cargoTotal: roundKg(cargo.w),
     zonesTotal: roundKg(zones.w),
 
     auw, auwCG,

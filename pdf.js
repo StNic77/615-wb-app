@@ -288,14 +288,18 @@ class PDFContext {
     this.y += 4;
   }
 
-  // Small italic note
+  // Small italic note (wraps to content width)
   note(str) {
-    this.checkPageBreak(6);
     this.setFont("italic", 7.5);
     this.setColor(...this.C_MED);
-    this.text(str, this.marginL, this.y);
+    const lines = this.doc.splitTextToSize(str, this.contentW);
+    for (const ln of lines) {
+      this.checkPageBreak(6);
+      this.text(ln, this.marginL, this.y);
+      this.y += 4;
+    }
+    this.y += 1;
     this.setColor(0, 0, 0);
-    this.y += 5;
   }
 
   spacer(h = 4) {
@@ -427,19 +431,22 @@ class PDFContext {
     const items = Object.keys(AC.missionEquip)
       .filter(k => s.mission[k])
       .map(k => getMissionItem(k))
-      .filter(it => it);
+      .filter(it => it)
+      // Exclude zero-weight stowage presence markers (group "Stowage"):
+      // they are LOCATIONS, not loadable equipment. Their contents are
+      // reported in the Stowage Summary below.
+      .filter(it => !((it.group || "") === "Stowage" && (+it.w || 0) === 0));
 
-    if (items.length === 0) {
-      this.note("No mission equipment loaded.");
-      this.spacer();
-      return;
+    const hasItems = items.length > 0;
+    if (!hasItems) {
+      this.note("No loadable mission equipment.");
     }
-
     // Group order — items whose group doesn't match any bucket go into Other
     const GROUP_ORDER = [
       { label: "SAR Equipment",       match: (g) => /sar/i.test(g) },
       { label: "ALSE Equipment",      match: (g) => /alse/i.test(g) },
       { label: "Medical Equipment",   match: (g) => /med/i.test(g) },
+      { label: "Personal Equipment",  match: (g) => /personal/i.test(g) },
       { label: "Mission Equipment",   match: (g) => /mission/i.test(g) },
       { label: "Port Forward Shelves",match: (g) => /port.*fwd|port.*forward|fwd.*port|forward.*port/i.test(g) },
       { label: "Ramp Shelves",        match: (g) => /ramp/i.test(g) },
@@ -477,6 +484,57 @@ class PDFContext {
         colWidths
       );
     }
+
+    // ----- Stowage Summary: load held in each stowage location -----
+    // Sum the weight of ON mission items by their stow ID, then report
+    // each load-planning location with its loaded weight, max, and status.
+    const occupied = {};
+    for (const k of Object.keys(AC.missionEquip)){
+      if (!s.mission[k]) continue;
+      const it = AC.missionEquip[k];
+      const sid = it.stow;
+      if (!sid || sid === "CUSTOM") continue;
+      const w = +it.w || 0;
+      if (w <= 0) continue;
+      occupied[sid] = (occupied[sid] || 0) + w;
+    }
+    // Add any manual Load-Planning weight entered against a stow location
+    for (const z of (s.zones || [])){
+      if (!z || !z.id) continue;
+      const zw = +z.w || 0;
+      if (zw <= 0) continue;
+      occupied[z.id] = (occupied[z.id] || 0) + zw;
+    }
+
+    const stowDefs = (typeof getLoadStowages === "function") ? getLoadStowages() : [];
+    const stowRows = stowDefs
+      .map(def => {
+        const loaded = Math.round(occupied[def.id] || 0);
+        const over = loaded > (+def.max || 0);
+        return { def, loaded, over };
+      })
+      .filter(r => r.loaded > 0)   // only show locations that hold something
+      .map(r => [
+        r.def.label,
+        `${r.loaded} kg`,
+        `${r.def.max} kg`,
+        r.over ? "OVER" : "OK"
+      ]);
+
+    if (stowRows.length){
+      this.checkPageBreak(16);
+      this.setFont("bold", 8);
+      this.setColor(...this.C_MED);
+      this.text("STOWAGE LIMIT CHECK (BY LOCATION)", this.marginL, this.y);
+      this.y += 4;
+      this.note("Verification only — these weights are already included in the mission equipment totals above and are NOT added again. This table confirms each stowage location is within its capacity limit.");
+      this.table(
+        ["Stowage Location", "Stowed", "Limit", "Status"],
+        stowRows,
+        [92, 22, 22, 30]
+      );
+    }
+
     this.spacer();
   }
 
@@ -485,7 +543,11 @@ class PDFContext {
     const s = this.s;
     this.sectionHeader("7 · Crew & Passenger Seats");
 
-    const personW = 90; // kg std occupant weight
+    // Occupant standard weights (per RFM): crew 90.7 kg, pax 90.00 kg
+    const crewW = 90.7;
+    const paxW  = 90.0;
+
+    const kg = (n) => `${Math.round(n)} kg`;
 
     // Crew
     const crewRows = Object.entries(AC.crewSeats)
@@ -495,9 +557,9 @@ class PDFContext {
         return [
           it.name,
           `${it.arm} mm`,
-          `${it.wSeat} kg`,
-          occupied ? `${personW} kg` : "vacant",
-          occupied ? `${it.wSeat + personW} kg` : `${it.wSeat} kg`
+          kg(it.wSeat),
+          occupied ? kg(crewW) : "vacant",
+          occupied ? kg(it.wSeat + crewW) : kg(it.wSeat)
         ];
       });
 
@@ -509,9 +571,9 @@ class PDFContext {
         return [
           it.name,
           `${it.arm} mm`,
-          `${it.wSeat} kg`,
-          occupied ? `${personW} kg` : "vacant",
-          occupied ? `${it.wSeat + personW} kg` : `${it.wSeat} kg`
+          kg(it.wSeat),
+          occupied ? kg(paxW) : "vacant",
+          occupied ? kg(it.wSeat + paxW) : kg(it.wSeat)
         ];
       });
 
@@ -583,13 +645,12 @@ class PDFContext {
       .map((c, i) => [`Cargo ${i+1}`, `${c.arm ?? 0} mm`, `${c.w ?? 0} kg`])
       .filter(r => parseFloat(r[2]) > 0);
 
-    // Zone loads — resolve label + arm from LOAD_ZONES definition
+    // Stowage loads — resolve label + arm from Section 7 (getLoadStowages)
+    const _stowDefs = (typeof getLoadStowages === "function") ? getLoadStowages() : [];
     const zoneRows = (s.zones || [])
       .filter(z => (z?.w ?? 0) > 0)
       .map(z => {
-        const def = (typeof LOAD_ZONES !== "undefined")
-          ? LOAD_ZONES.find(d => d.id === z.id)
-          : null;
+        const def = _stowDefs.find(d => d.id === z.id) || null;
         const label = def ? def.label : (z.id || "—");
         const arm   = def ? def.arm   : 0;
         return [label, `${arm} mm`, `${z.w} kg`];
@@ -618,7 +679,7 @@ class PDFContext {
       if (zoneRows.length) {
         this.setFont("bold", 8);
         this.setColor(...this.C_DARK);
-        this.text("Stowage Zone Loads:", this.marginL, this.y);
+        this.text("Stowage Loads (Load Planning):", this.marginL, this.y);
         this.y += 5;
         this.table(headers, zoneRows, colWidths);
       }
@@ -692,6 +753,11 @@ class PDFContext {
     this.kvRow("Operating Weight",     `${wb.opW} kg`);
     this.kvRow("Operating CG",         `${wb.opCG} mm`);
     this.spacer(1);
+    // Tactical payload — layered on top of OW (not part of Operating Weight).
+    // Always shown (even at 0 kg) so the chain OW + Bays + Cargo + Fuel = AUW
+    // visibly reconciles on every record.
+    this.kvRow("Bay Loads",            `${wb.bayTotal ?? 0} kg`);
+    this.kvRow("Cargo",                `${wb.cargoTotal ?? 0} kg`);
     this.kvRow("Fuel (departure)",     `${wb.fuelTotal} kg`);
     this.spacer(1);
     this.kvRow("AUW",                  `${wb.auw} kg`,   auwHl);

@@ -4,6 +4,13 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>CH-149-615 Weight &amp; Balance</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+  <meta name="theme-color" content="#0d0d0d" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="615 W&amp;B" />
   <link rel="stylesheet" href="styles.css">
 </head>
 
@@ -202,7 +209,33 @@
     </div>
 
         
-                <details class="card collapsible" open>
+    <!-- SEAT REFERENCE — crew & pax position schematics -->
+    <details id="panelSeatReference" class="card collapsible">
+      <summary><h2 style="margin:0; display:inline;">Seat Position Reference</h2></summary>
+      <div class="small" style="margin:8px 0 10px 0;">
+        Crew and passenger seat positions by bay (from RFM / schematics).
+      </div>
+      <div style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start;">
+        <div style="flex:1 1 280px; min-width:240px;">
+          <div class="small muted" style="margin-bottom:6px;">Crew Seat Positions (C1&ndash;C6)</div>
+          <img
+            src="images/Schematic_SAR_Crew.png"
+            alt="Crew seat positions and bay reference"
+            style="width:100%; height:auto; border-radius:10px; display:block;"
+          />
+        </div>
+        <div style="flex:1 1 280px; min-width:240px;">
+          <div class="small muted" style="margin-bottom:6px;">Passenger Seat Positions</div>
+          <img
+            src="images/Schematic_Pax_Seats.png"
+            alt="Passenger seat positions and bay reference"
+            style="width:100%; height:auto; border-radius:10px; display:block;"
+          />
+        </div>
+      </div>
+    </details>
+
+                <details class="card collapsible">
       <summary><h2 style="margin:0; display:inline;">Crew Seats (C1–C6)</h2></summary>
       <div id="seatListCrew" style="margin-top:10px;"></div>
     </details>
@@ -302,6 +335,33 @@
     </div>
   </div>
 
+  <!-- BAY REFERENCE — directly under the envelope graphic -->
+  <details id="panelBayReference" class="card">
+    <summary><strong>Bay Reference</strong></summary>
+    <div class="small" style="margin:8px 0 10px 0;">
+      Bay arm reference and seat positions (from RFM / schematics).
+    </div>
+    <div id="bayReferenceBlock" style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start;">
+      <div style="flex:1 1 280px; min-width:240px;">
+        <div class="small muted" style="margin-bottom:6px;">Crew Seat Positions (C1&ndash;C6) by Bay</div>
+        <img
+          src="images/Schematic_SAR_Crew.png"
+          alt="Crew seat positions and bay reference"
+          style="width:100%; height:auto; border-radius:10px; display:block;"
+        />
+      </div>
+      <div style="flex:1 1 280px; min-width:240px;">
+        <div class="small muted" style="margin-bottom:6px;">Passenger Seat Positions by Bay</div>
+        <img
+          src="images/Schematic_Pax_Seats.png"
+          alt="Passenger seat positions and bay reference"
+          style="width:100%; height:auto; border-radius:10px; display:block;"
+        />
+      </div>
+    </div>
+  </details>
+
+
   <div class="card">
     <h2>LOAD PLANNING <small>Cabin &amp; Cargo (MCDU mirrors)</small></h2>
 
@@ -359,41 +419,8 @@
     </details>
 
     <div class="hr"></div>
-
-    <!-- REFERENCE -->
-    <details id="panelBayReference">
-
-
-      <summary><strong>Bay Reference</strong></summary>
-      <div class="small" style="margin:8px 0 10px 0;">
-        Bay arm reference and seat positions (from RFM / schematics).
-      </div>
-      <div id="bayReferenceBlock">
-        <div style="margin-bottom:16px;">
-          <div class="small muted" style="margin-bottom:6px;">Crew Seat Positions (C1&ndash;C6) by Bay</div>
-          <img
-            src="images/Schematic_SAR_Crew.png"
-            alt="Crew seat positions and bay reference"
-            style="width:100%; max-width:640px; height:auto; border-radius:10px; display:block;"
-          />
-        </div>
-        <div>
-          <div class="small muted" style="margin-bottom:6px;">Passenger Seat Positions by Bay</div>
-          <img
-            src="images/Schematic_Pax_Seats.png"
-            alt="Passenger seat positions and bay reference"
-            style="width:100%; max-width:640px; height:auto; border-radius:10px; display:block;"
-          />
-        </div>
-      </div>
-
-    </details>
   </div>
 </section>
-
-
-    
-  </section>
 
   <!-- CERTIFY -->
   <section id="tab_CERTIFY" class="grid hide">
@@ -505,3 +532,14 @@
 <script src="pdf.js"></script>
 <script src="editor.js"></script>
 <script src="app.js"></script>
+
+<script>
+  // Register service worker for offline/PWA support
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js')
+        .then(reg => console.log('[SW] Registered, scope:', reg.scope))
+        .catch(err => console.warn('[SW] Registration failed:', err));
+    });
+  }
+</script>

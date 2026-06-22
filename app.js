@@ -833,6 +833,19 @@ function applyPreset(tail, presetKey){
     }
   }
 
+  // Default crew (ADDITIVE): fill the config's standard crew seats without
+  // disturbing any occupants the FE has already set. Ensures each default
+  // seat is installed, then marks it occupied if not already. The FE confirms
+  // and adjusts on the Seats tab.
+  if (!s.occupants) s.occupants = {};
+  for (const k of (p.occupants || [])){
+    s.seats[k] = true;                      // guarantee the seat is installed
+    if (!s.occupants[k]){                   // don't overwrite an existing occupant
+      const isCrew = !!AC.crewSeats[k];
+      s.occupants[k] = { type: isCrew ? "crew" : "pax", label: "OCCUPIED" };
+    }
+  }
+
 
   // RoleFit: destructive apply (clear then apply)
   for (const k of Object.keys(s.roleFit)) s.roleFit[k] = false;
@@ -1015,6 +1028,21 @@ function renderMission(){
 
   const wbBefore = computeWB(tail);
 
+  // Occupied weight per stowage location: sum of ON mission items that
+  // reference each stow ID. Lets the Stowage card show how much of a
+  // shelf/bin is already taken by loaded equipment (same source as the
+  // Load Planning base), so an FE or custodian adding kit sees it everywhere.
+  const occupiedByStow = {};
+  for (const mk of Object.keys(AC.missionEquip)){
+    if (!s.mission[mk]) continue;                 // only items currently ON
+    const mit = AC.missionEquip[mk];
+    const sid = mit.stow;
+    if (!sid || sid === "CUSTOM") continue;
+    const w = +mit.w || 0;
+    if (w <= 0) continue;                          // skip zero-weight presence markers
+    occupiedByStow[sid] = (occupiedByStow[sid] || 0) + w;
+  }
+
     // Collapsible group cards (persist open/closed per tail)
   s.ui = s.ui || {};
   s.ui.meGroups = s.ui.meGroups || {};
@@ -1109,12 +1137,24 @@ function renderMission(){
 
       const left = document.createElement("div");
       left.className = "left";
+
+      // For stowage presence markers (zero-weight items that ARE a location),
+      // show how much weight is already loaded into that location.
+      const isStowageMarker = (it.w === 0) && (g === "Stowage");
+      const loadedHere = occupiedByStow[it.stow] || 0;
+      const occupiedLine = isStowageMarker
+        ? `<div class="meta small">${loadedHere > 0
+              ? `Loaded here: <strong>${roundKg(loadedHere)} kg</strong> from mission equipment`
+              : `Empty — no mission equipment loaded here`}</div>`
+        : "";
+
       left.innerHTML = `
         <div class="name">${it.name}</div>
         <div class="meta mono">${roundKg(it.w)} kg @ ${roundMm(it.arm)} mm · ${it.stow}</div>
         <div class="meta">${on ? "<span class='badge good'>ON</span>" : "<span class='badge'>OFF</span>"} &nbsp;
           <span class="small">If toggled → Operating CG ${fmtMm(newOpCG)} (from ${fmtMm(opCG)})</span>
         </div>
+        ${occupiedLine}
       `;
 
       const sw = document.createElement("div");
@@ -1213,7 +1253,7 @@ function renderSeats(){
   if (listPax)  listPax.innerHTML = "";
 
 
-  const personW = 90;
+  const CREW_W = 90.7, PAX_W = 90.0; // RFM occupant standard weights (display)
 
     const addSeatBlock = (key, seat, isCrew, targetEl)=>{
 
@@ -1226,7 +1266,8 @@ function renderSeats(){
     const left = document.createElement("div");
     left.className = "left";
 
-    const occText = occ ? `${occ.label} (${occ.type.toUpperCase()} · 90kg)` : "Empty";
+    const occW = isCrew ? CREW_W : PAX_W;
+    const occText = occ ? `${occ.label} (${occ.type.toUpperCase()} · ${occW}kg)` : "Empty";
     const occBadge = occ ? "badge good" : "badge";
 
     left.innerHTML = `
@@ -1641,33 +1682,49 @@ function renderEnvelopeHeader(){
    ========================= */
 
 /* =========================
-   LOAD ZONES
-   Discrete stowage locations referenced by Load Planning and the PDF.
-   Defined at module scope so pdf.js can read zone labels and arms.
-   arm: mm; max: kg (capacity limit for that zone)
+   LOAD PLANNING — STOWAGE LOCATIONS
+   Single source of truth for identity/arm/name is AC.stowage (config.js
+   Section 7). This table adds ONLY the per-location capacity limit (max kg),
+   keyed by the SAME Section 7 stowage ID. A location appears in Load Planning
+   if and only if it has a max here — locations without a max are operating
+   positions (basket, litter, cot, ramp stow) accounted for via role/mission
+   equipment, NOT loose-load shelves.
    ========================= */
-const LOAD_ZONES = [
-  // Mission Equipment — Forward shelves (Port FWD, 3 levels)
-  { id: "FWD_PORT_BTM", label: "PORT FWD Shelf – BOTTOM", arm: 5331, max: 22 },
-  { id: "FWD_PORT_MID", label: "PORT FWD Shelf – MIDDLE", arm: 5331, max: 22 },
-  { id: "FWD_PORT_TOP", label: "PORT FWD Shelf – TOP",    arm: 5331, max: 22 },
+const STOW_MAX = {
+  // SAR Stowage Cabinet
+  SAR_CABINET_FWD_TOP: 22,
+  SAR_CABINET_FWD_BTM: 60,
+  SAR_CABINET_UPPER:   35,
+  SAR_CABINET_TOP:     63,
+  LOCKBOX_TOP:         18.5,
+  LOCKBOX_BTM:         18.5,
+  SAR_CABINET_MIDDLE:  100,
+  SAR_CABINET_BOTTOM:  125,
+  // Port Fwd Shelves
+  PORT_FWD_SHELF_TOP:  22,
+  PORT_FWD_SHELF_MID:  22,
+  PORT_FWD_SHELF_BOT:  22,
+  // Ramp Area Shelves
+  RAMP_PORT_FWD:       44,
+  RAMP_PORT_AFT:       22,
+  RAMP_STBD_FWD:       44,
+  RAMP_STBD_AFT:       22,
+  // Overhead Bins (permanent structure — always available)
+  OVERHEAD_PORT:       7.5,
+  OVERHEAD_STBD:       20.0
+};
 
-  // Mission Equipment — Ramp shelves (known)
-  { id: "RAMP_PORT_FWD", label: "Ramp Shelf – PORT FWD", arm: 12463, max: 44 },
-  { id: "RAMP_PORT_AFT", label: "Ramp Shelf – PORT AFT", arm: 13226, max: 22 },
-  { id: "RAMP_STBD_FWD", label: "Ramp Shelf – STBD FWD", arm: 12481, max: 44 },
-  { id: "RAMP_STBD_AFT", label: "Ramp Shelf – STBD AFT", arm: 13228, max: 22 },
-
-  // Role Fit (SAR) — SAR Stowage Cabinet zones (all at 6275mm)
-  { id: "SAR_A", label: "SAR STOWAGE CABINET – FWD TOP (Zone A)",        arm: 6275, max: 22 },
-  { id: "SAR_B", label: "SAR STOWAGE CABINET – FWD BTM (Zone B)",        arm: 6275, max: 60 },
-  { id: "SAR_C", label: "SAR STOWAGE CABINET – UPPER (Zone C)",          arm: 6275, max: 35 },
-  { id: "SAR_D", label: "SAR STOWAGE CABINET – TOP (Zone D)",            arm: 6275, max: 63 },
-  { id: "SAR_E", label: "SAR STOWAGE CABINET – LOCKBOX TOP (Zone E)",    arm: 6275, max: 18.5 },
-  { id: "SAR_F", label: "SAR STOWAGE CABINET – LOCKBOX BTM (Zone F)",    arm: 6275, max: 18.5 },
-  { id: "SAR_G", label: "SAR STOWAGE CABINET – MIDDLE (Zone G)",         arm: 6275, max: 100 },
-  { id: "SAR_H", label: "SAR STOWAGE CABINET – BOTTOM (Zone H)",         arm: 6275, max: 125 }
-];
+// Build the ordered list of load-planning stowage locations from AC.stowage,
+// keeping only those with a defined max. Arm + name come from config (Section 7).
+function getLoadStowages(){
+  const list = [];
+  for (const id of Object.keys(AC.stowage || {})){
+    if (!(id in STOW_MAX)) continue;            // no max → operating position, skip
+    const loc = AC.stowage[id];
+    list.push({ id, label: loc.name, arm: loc.arm, group: loc.group, max: STOW_MAX[id] });
+  }
+  return list;
+}
 
 
 function renderCargo(){
@@ -1682,12 +1739,12 @@ function renderCargo(){
   while (s.cargo.length < 4) s.cargo.push({ w: 0, arm: 8000 });
   if (s.cargo.length > 4) s.cargo = s.cargo.slice(0, 4);
 
-  // ---------- ensure discrete Load Zones bucket (NOT MCDU Cargo) ----------
-  // These loads will be summed into Operating Weight/Moment (therefore affecting AUW CG downstream).
+  // ---------- ensure discrete Load Planning bucket (NOT MCDU Cargo) ----------
+  // These loads sum into Operating Weight/Moment (Section 7 stowage = OW).
   if (!Array.isArray(s.zones)) s.zones = [];
 
 
-  const getZoneDef = (id) => LOAD_ZONES.find(z => z.id === id) || null;
+  const getZoneDef = (id) => getLoadStowages().find(z => z.id === id) || null;
 
 
   // ---------- MCDU CARGO mirror (read-only, always visible) ----------
@@ -1815,50 +1872,43 @@ mcduWriteMirror("mcduCargoMirror", lines);
     });
   }
 
-  // ---------- Load Zones / Shelves edit fields (separate from MCDU Cargo) ----------
+  // ---------- Load Planning / Stowage edit fields (separate from MCDU Cargo) ----------
 const zoneHost = document.getElementById("zoneEditFields");
 if (zoneHost){
 
   const safeRender = (typeof render === "function") ? render : function(){};
 
-  // Ensure one entry per zone definition (by id)
+  // The authoritative load-planning location list (from AC.stowage, max-gated)
+  const STOWS = getLoadStowages();
+
+  // Ensure one entry per stowage location (keyed by Section 7 id), manual-add only
   const zoneIndex = {};
   (Array.isArray(s.zones) ? s.zones : []).forEach(z => { if (z && z.id) zoneIndex[z.id] = z; });
 
-  // Normalize list in definition order (id + w only)
-  s.zones = LOAD_ZONES.map(def => {
+  s.zones = STOWS.map(def => {
     const existing = zoneIndex[def.id];
     return { id: def.id, w: roundKg(existing && Number.isFinite(+existing.w) ? +existing.w : 0) };
   });
 
-  // Base is DISPLAY-ONLY: base items are already counted in mission/config totals
+  // Base = sum of ALL live mission-equipment items resolved to each stowage id.
+  // DISPLAY-ONLY: these weights are already counted in mission totals (me.w),
+  // so the manual 'Add' field is the only thing contributing to zones.w.
+  // Grouping by it.stow (not a hand-maintained map) means every mission item
+  // in a location is captured — nothing bypasses the overload guard.
   const computeZoneBaseKg = (s) => {
     const base = {};
-    LOAD_ZONES.forEach(def => { base[def.id] = 0; });
-
-    const MISSION_TO_ZONE = {
-      ME_SAR_ZONEH:  "SAR_H",
-      ME_MED_ZONEG:  "SAR_G",
-      ME_ALSE_ZONED: "SAR_D",
-      ME_QDIS_X3:    "SAR_C",
-      ME_NVGS_X5:    "SAR_E"
-    };
+    STOWS.forEach(def => { base[def.id] = 0; });
 
     const mission = (s && s.mission) ? s.mission : {};
     for (const key of Object.keys(mission)){
       if (!mission[key]) continue;
-
-      const zoneId = MISSION_TO_ZONE[key];
-      if (!zoneId) continue;
-      if (base[zoneId] == null) continue;
-
       const it = (AC.missionEquip) ? AC.missionEquip[key] : null;
       if (!it) continue;
-
+      const stowId = it.stow;
+      if (base[stowId] == null) continue;   // item lives in a non-loadplan location
       const ww = +it.w || 0;
       if (!Number.isFinite(ww) || ww <= 0) continue;
-
-      base[zoneId] += ww;
+      base[stowId] += ww;
     }
 
     Object.keys(base).forEach(k => base[k] = roundKg(base[k] || 0));
@@ -1867,32 +1917,38 @@ if (zoneHost){
 
   const baseByZone = computeZoneBaseKg(s);
 
-  // Availability gating
-  const isZoneAvailable = (zoneId) => {
+  // Availability gating — a stowage row appears only if its structure is fitted.
+  //   SAR Cabinet shelves  → RF_SAR_CABINET installed
+  //   Port Fwd / Ramp shelves → that shelf's own mission item is on
+  //   Overhead Bins        → permanent structure, always available
+  const SHELF_GATE = {
+    PORT_FWD_SHELF_TOP: "ME_PORT_FWD_SHELF_TOP",
+    PORT_FWD_SHELF_MID: "ME_PORT_FWD_SHELF_MID",
+    PORT_FWD_SHELF_BOT: "ME_PORT_FWD_SHELF_BOT",
+    RAMP_PORT_FWD:      "ME_RAMP_SHELF_PORT_FWD",
+    RAMP_PORT_AFT:      "ME_RAMP_SHELF_PORT_AFT",
+    RAMP_STBD_FWD:      "ME_RAMP_SHELF_STBD_FWD",
+    RAMP_STBD_AFT:      "ME_RAMP_SHELF_STBD_AFT"
+  };
+
+  const isZoneAvailable = (stowId) => {
     const roleFit = (s && s.roleFit) ? s.roleFit : {};
     const mission = (s && s.mission) ? s.mission : {};
+    const loc = AC.stowage[stowId];
 
-    const hasSarCabinet = !!roleFit["RF_SAR_CABINET"];
-    if (String(zoneId).startsWith("SAR_")) return hasSarCabinet;
+    // SAR Cabinet group gates on the cabinet being fitted
+    if (loc && loc.group === "SAR Cabinet") return !!roleFit["RF_SAR_CABINET"];
 
-    const gate = {
-      FWD_PORT_TOP: "ME_PORT_FWD_SHELF_TOP",
-      FWD_PORT_MID: "ME_PORT_FWD_SHELF_MID",
-      FWD_PORT_BTM: "ME_PORT_FWD_SHELF_BOT",
-      RAMP_PORT_FWD: "ME_RAMP_SHELF_PORT_FWD",
-      RAMP_PORT_AFT: "ME_RAMP_SHELF_PORT_AFT",
-      RAMP_STBD_FWD: "ME_RAMP_SHELF_STBD_FWD",
-      RAMP_STBD_AFT: "ME_RAMP_SHELF_STBD_AFT"
-    };
-
-    const gateKey = gate[zoneId];
+    // Shelves gate on their own mission-equipment item
+    const gateKey = SHELF_GATE[stowId];
     if (gateKey) return !!mission[gateKey];
 
+    // Everything else with a max (overhead bins) is always available
     return true;
   };
 
   const paintZoneTotal = (i) => {
-    const def = LOAD_ZONES[i];
+    const def = STOWS[i];
     const entry = s.zones[i];
     if (!def || !entry) return;
 
@@ -1919,12 +1975,16 @@ totalEl.classList.toggle("over", over);
   s.ui = s.ui || {};
   s.ui.lpGroups = s.ui.lpGroups || {};
 
-  const lpGroupFor = (zoneId)=>{
-    zoneId = String(zoneId || "");
-    if (zoneId.startsWith("FWD_PORT_")) return { title:"PORT FWD Shelves", key:"LP_PORT_FWD" };
-    if (zoneId.startsWith("SAR_"))      return { title:"SAR STOWAGE CABINET", key:"LP_SAR_CAB" };
-    if (zoneId.startsWith("RAMP_"))     return { title:"RAMP AREA SHELVES", key:"LP_RAMP" };
-    return { title:"Load Zones", key:"LP_OTHER" };
+  const lpGroupFor = (stowId)=>{
+    const loc = AC.stowage[stowId];
+    const grp = loc ? loc.group : "";
+    if (grp === "Port Fwd Shelves") return { title:"PORT FWD",            key:"LP_PORT_FWD" };
+    if (grp === "SAR Cabinet")      return { title:"SAR CABINET",         key:"LP_SAR_CAB" };
+    if (grp === "Ramp")             return { title:"RAMP AREA SHELVES",   key:"LP_RAMP" };
+    // Overhead bins live in the "Cabin" group but get their own card
+    if (stowId === "OVERHEAD_PORT" || stowId === "OVERHEAD_STBD")
+                                    return { title:"OVERHEAD BINS",       key:"LP_OVHD" };
+    return { title:"OTHER STOWAGE", key:"LP_OTHER" };
   };
 
   const makeGroupCard = (title, key)=>{
@@ -1974,12 +2034,12 @@ totalEl.classList.toggle("over", over);
   };
 
   // Create group containers in desired order
-  const groupOrder = ["LP_PORT_FWD","LP_SAR_CAB","LP_RAMP","LP_OTHER"];
+  const groupOrder = ["LP_PORT_FWD","LP_SAR_CAB","LP_OVHD","LP_RAMP","LP_OTHER"];
   const groups = {};
   const bodies = {};
 
   // First pass: discover which groups exist
-  LOAD_ZONES.forEach(def=>{
+  STOWS.forEach(def=>{
     const g = lpGroupFor(def.id);
     groups[g.key] = g.title;
   });
@@ -1992,8 +2052,8 @@ totalEl.classList.toggle("over", over);
     bodies[key] = gc.body;
   });
 
-  // Build zone cards inside their group body
-   LOAD_ZONES.forEach((def, i) => {
+  // Build stowage location cards inside their group body
+   STOWS.forEach((def, i) => {
     const entry = s.zones[i];
     const available = isZoneAvailable(def.id);
     if (!available) entry.w = 0;
@@ -2012,7 +2072,7 @@ totalEl.classList.toggle("over", over);
     card.innerHTML = `
       <div class="row" style="align-items:flex-end; gap:10px;">
         <div style="flex:2 1 260px;">
-          <div class="lbl">Zone</div>
+          <div class="lbl">Stowage</div>
           <div class="mono">${def.label}</div>
         </div>
 
