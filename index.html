@@ -15,6 +15,49 @@
 </head>
 
 <body>
+
+<!-- ───────────── OPENING SCREEN / DISCLAIMER ─────────────
+     Shown on a genuinely new session (first launch, or after End Session),
+     and again whenever the config data version changes. Dismiss-to-continue.
+     Populated and gated by app.js (maybeShowSplash). -->
+<div id="splashOverlay" class="splash-overlay" hidden>
+  <div class="splash-card" role="dialog" aria-modal="true" aria-labelledby="splashTitle">
+    <div class="splash-head">
+      <div class="splash-dot"></div>
+      <div>
+        <div id="splashTitle" class="splash-title">CH-149-615 Weight &amp; Balance</div>
+        <div class="splash-sub">Pre-departure planning tool · Data from DLTP 101C-615</div>
+      </div>
+    </div>
+
+    <div class="splash-versions">
+      <div class="splash-vbox">
+        <div class="splash-vlabel">APP VERSION</div>
+        <div class="splash-vnum" id="splashAppVer">—</div>
+        <div class="splash-vdesc">The <b>software</b> — the calculation logic and interface.
+          Changes when the app's code is updated.</div>
+      </div>
+      <div class="splash-vbox">
+        <div class="splash-vlabel">CONFIGURATION VERSION</div>
+        <div class="splash-vnum" id="splashCfgVer">—</div>
+        <div class="splash-vdesc">The <b>aircraft data</b> — arms, weights, envelope, equipment, presets.
+          Changes when the squadron custodian publishes updated data.</div>
+      </div>
+    </div>
+
+    <div class="splash-note" id="splashCfgNote"></div>
+
+    <div class="splash-disclaimer">
+      This application is a <b>planning aid</b>. It does not connect to, command, or
+      replace any aircraft system. The Flight Engineer remains responsible for entering
+      and confirming all values in the MCDU through the aircraft's own certified process.
+      Verify the configuration version above is the current published data before use.
+    </div>
+
+    <button class="splash-btn" id="splashAck">I understand — continue</button>
+  </div>
+</div>
+
 <header>
   <div class="topbar">
     <div class="brand">

@@ -648,6 +648,7 @@ function renderHome(){
       if (!confirm("End session and clear ALL tails back to defaults? This cannot be undone.")) return;
       if (typeof endPersistedSession === "function") endPersistedSession();
       setTab("HOME");
+      if (typeof maybeShowSplash === "function") maybeShowSplash();
     };
   }
 
@@ -3157,6 +3158,9 @@ initThemeToggle();
 })();
 
 render();
+
+// Opening screen / disclaimer — shows on new session or config version change.
+if (typeof maybeShowSplash === "function") maybeShowSplash();
 
 // keep envelope responsive
 window.addEventListener("resize", ()=>{

@@ -106,6 +106,7 @@ function restoreSession(){
    ========================= */
 function endPersistedSession(){
   try { localStorage.removeItem(SESSION_KEY); } catch (e) {}
+  try { localStorage.removeItem(SPLASH_ACK_KEY); } catch (e) {}  // re-show opening screen
   if (typeof initTails === "function"){
     STORE.sessions = {};
     STORE.selectedTail = null;
@@ -122,4 +123,90 @@ function lastPersistInfo(){
     const snap = JSON.parse(raw);
     return { savedAt: snap.savedAt, appVersion: snap.appVersion };
   } catch (e) { return null; }
+}
+
+/* =========================
+   OPENING SCREEN / DISCLAIMER GATE
+   Shows on a genuinely new session (no prior acknowledgement), and again
+   whenever the config data version differs from the last acknowledged one.
+   "Just dismiss" — no logging, no PDF entry.
+
+   Acknowledgement is keyed to the config version so a custodian data update
+   forces operators to re-acknowledge and notice the version moved. A plain
+   swipe-close/reopen with an unchanged config does NOT re-show it.
+   ========================= */
+const SPLASH_ACK_KEY = "wb615_splash_ack";
+
+function currentConfigVersion(){
+  if (typeof AC !== "undefined" && AC.meta && Number.isFinite(AC.meta.configVersion)){
+    return AC.meta.configVersion;
+  }
+  return null;
+}
+
+/* Returns true if the splash should be shown right now. */
+function splashShouldShow(){
+  try {
+    const acked = localStorage.getItem(SPLASH_ACK_KEY);
+    if (acked == null) return true;                 // never acknowledged → new session
+    const ackedV = Number(acked);
+    const curV   = currentConfigVersion();
+    if (curV == null) return false;                 // no version info → don't nag
+    return ackedV !== curV;                          // config changed since last ack
+  } catch (e) {
+    return true; // storage unavailable → show (fail safe toward informing)
+  }
+}
+
+/* Record acknowledgement of the current config version. */
+function splashAcknowledge(){
+  try {
+    const curV = currentConfigVersion();
+    localStorage.setItem(SPLASH_ACK_KEY, String(curV == null ? "" : curV));
+  } catch (e) { /* non-fatal */ }
+}
+
+/* Wire up and conditionally display the opening screen. Call once at boot,
+   after AC and the DOM are available. */
+function maybeShowSplash(){
+  const overlay = document.getElementById("splashOverlay");
+  if (!overlay) return;
+
+  // Populate version numbers + note every time (cheap, keeps them current).
+  const appEl = document.getElementById("splashAppVer");
+  const cfgEl = document.getElementById("splashCfgVer");
+  const noteEl = document.getElementById("splashCfgNote");
+
+  if (appEl) appEl.textContent =
+    (typeof APP_VERSION !== "undefined") ? ("v" + APP_VERSION) : "—";
+
+  const curV = currentConfigVersion();
+  if (cfgEl) cfgEl.textContent = (curV != null) ? ("v" + curV) : "—";
+
+  if (noteEl && typeof AC !== "undefined" && AC.meta){
+    const log = Array.isArray(AC.meta.changelog) ? AC.meta.changelog : [];
+    const latest = log[0];
+    let txt = "";
+    if (AC.meta.configReleasedAt){
+      txt += "Configuration released " +
+        new Date(AC.meta.configReleasedAt).toLocaleString() + ". ";
+    }
+    if (latest && latest.note && latest.note !== "(no note provided)"){
+      txt += "Latest change: " + latest.note;
+    }
+    noteEl.textContent = txt.trim();
+  }
+
+  // Wire the dismiss button once.
+  const btn = document.getElementById("splashAck");
+  if (btn && !btn._wired){
+    btn._wired = true;
+    btn.onclick = () => {
+      splashAcknowledge();
+      overlay.hidden = true;
+    };
+  }
+
+  // Show or hide based on the gate.
+  overlay.hidden = !splashShouldShow();
 }
