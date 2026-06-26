@@ -1076,9 +1076,31 @@ function renderMission(){
     const defaultOpen = (g)=>false;
 
 
+  // Role display order for crew-keyed items (Personal Equipment)
+  const ROLE_ORDER = { AC:0, FO:1, FE:2, STTL:3, STTM:4 };
+  const parsePE = (key)=>{
+    // ME_<ROLE>_<TYPE>  e.g. ME_STTL_RON_BAG -> role STTL, type RON_BAG
+    const m = /^ME_(AC|FO|FE|STTL|STTM)_(.+)$/.exec(key);
+    return m ? { role: m[1], type: m[2] } : null;
+  };
+
   for (const g of groups){
 
-    const items = grouped[g].sort((a,b)=> String(a.it.stow||"").localeCompare(String(b.it.stow||"")));
+    let items;
+    if (g === "Personal Equipment"){
+      // Group like items together (all B25s, all RON bags, ...), then by crew role
+      items = grouped[g].slice().sort((a,b)=>{
+        const pa = parsePE(a.k), pb = parsePE(b.k);
+        if (pa && pb){
+          if (pa.type !== pb.type) return pa.type.localeCompare(pb.type);
+          return (ROLE_ORDER[pa.role] ?? 99) - (ROLE_ORDER[pb.role] ?? 99);
+        }
+        // fall back to name for any non-conforming key
+        return String(a.it.name||"").localeCompare(String(b.it.name||""));
+      });
+    } else {
+      items = grouped[g].sort((a,b)=> String(a.it.stow||"").localeCompare(String(b.it.stow||"")));
+    }
 
     // selected count for badge
     let sel = 0;
