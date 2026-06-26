@@ -1,11 +1,30 @@
 /**
  * config.js — CH-149 - 615 W&B App
- * Exported by the Custodian Editor on 2026-06-22T04:00:47.904Z
+ * Exported by the Custodian Editor on 2026-06-26T22:53:20.249Z
+ * Config data version: 2
  *
  * This file was generated from the editor. It contains the full
  * current state of all aircraft data. Rename to config.js and
  * replace your existing config.js to publish changes.
  */
+
+// SECTION 11 — CONFIG META (data version, separate from app code version)
+const AC_META = {
+  "configVersion": 2,
+  "configReleasedAt": "2026-06-26T22:53:20.249Z",
+  "changelog": [
+    {
+      "version": 2,
+      "at": "2026-06-26T22:53:20.249Z",
+      "note": "Better organized personal equipment and added a spare set of NVGs"
+    },
+    {
+      "version": 1,
+      "at": "2026-06-22T04:00:47.904Z",
+      "note": "Baseline configuration."
+    }
+  ]
+};
 
 // SECTION 1 — TAIL NUMBERS
 const AC_TAILS = {
@@ -805,21 +824,21 @@ const AC_MISSION_EQUIP = {
     "on": true
   },
   "ME_AC_B25": {
-    "name": "AC B25",
+    "name": "B25 AC",
     "w": 20,
     "stow": "PORT_FWD_SHELF_MID",
     "group": "Personal Equipment",
     "on": false
   },
   "ME_FO_B25": {
-    "name": "FO B25",
+    "name": "B25 FO",
     "w": 20,
     "stow": "PORT_FWD_SHELF_TOP",
     "group": "Personal Equipment",
     "on": false
   },
   "ME_FE_B25": {
-    "name": "FE B25",
+    "name": "B25 FE",
     "w": 20,
     "stow": "PORT_FWD_SHELF_BOT",
     "group": "Personal Equipment",
@@ -827,56 +846,56 @@ const AC_MISSION_EQUIP = {
     "customArm": 6262
   },
   "ME_STTL_B25": {
-    "name": "Team Lead B25/Dive Gear",
+    "name": "B25/Dive Gear Team Lead",
     "w": 40,
     "stow": "RAMP_PORT_FWD",
     "group": "Personal Equipment",
     "on": false
   },
   "ME_STTM_B25": {
-    "name": "Team Member B25/Dive Gear",
+    "name": "B25/Dive Gear Team Member ",
     "w": 40,
     "stow": "RAMP_STBD_FWD",
     "group": "Personal Equipment",
     "on": false
   },
   "ME_AC_RON_BAG": {
-    "name": "AC RON bag",
+    "name": "RON bag AC",
     "w": 10,
     "stow": "SAR_CABINET_FWD_BTM",
     "group": "Personal Equipment",
     "on": false
   },
   "ME_FO_RON_BAG": {
-    "name": "FO RON Bag",
+    "name": "RON Bag FO",
     "w": 10,
     "stow": "SAR_CABINET_FWD_BTM",
     "group": "Personal Equipment",
     "on": false
   },
   "ME_FE_RON_BAG": {
-    "name": "FE RON Bag",
+    "name": "RON Bag FE",
     "w": 10,
     "stow": "SAR_CABINET_FWD_BTM",
     "group": "Personal Equipment",
     "on": false
   },
   "ME_STTL_RON_BAG": {
-    "name": "Team Lead RON Bag",
+    "name": "RON Bag Team Lead",
     "w": 10,
     "stow": "RAMP_PORT_AFT",
     "group": "Personal Equipment",
     "on": false
   },
   "ME_STTM_RON_BAG": {
-    "name": "Team Member RON Bag",
+    "name": "RON Bag Team Member ",
     "w": 10,
     "stow": "RAMP_STBD_AFT",
     "group": "Personal Equipment",
     "on": false
   },
   "ME_AC_EFB_BAG": {
-    "name": "AC EFB Bag",
+    "name": "EFB Bag AC",
     "w": 5,
     "stow": "CUSTOM",
     "group": "Personal Equipment",
@@ -884,7 +903,7 @@ const AC_MISSION_EQUIP = {
     "customArm": 3473
   },
   "ME_FO_EFB_BAG": {
-    "name": "FO EFB Bag",
+    "name": "EFB Bag FO",
     "w": 5,
     "stow": "CUSTOM",
     "group": "Personal Equipment",
@@ -892,7 +911,7 @@ const AC_MISSION_EQUIP = {
     "customArm": 3473
   },
   "ME_FE_HELMET_BAG": {
-    "name": "FE Helmet Bag",
+    "name": "Helmet Bag FE",
     "w": 10,
     "stow": "CUSTOM",
     "group": "Personal Equipment",
@@ -900,7 +919,7 @@ const AC_MISSION_EQUIP = {
     "customArm": 6262
   },
   "ME_STTL_HOIST_BAG": {
-    "name": "Team Lead Hoist Bag",
+    "name": "Hoist Bag Team Lead ",
     "w": 10,
     "stow": "CUSTOM",
     "group": "Personal Equipment",
@@ -908,12 +927,19 @@ const AC_MISSION_EQUIP = {
     "customArm": 8244
   },
   "ME_STTM_HOIST_BAG": {
-    "name": "Team Member Hoist Bag",
+    "name": "Hoist Bag Team Member ",
     "w": 10,
     "stow": "CUSTOM",
     "group": "Personal Equipment",
     "on": false,
     "customArm": 9234
+  },
+  "ME_NVG_6TH_CREW": {
+    "name": "NVG Set for 6th Crew",
+    "w": 0.9,
+    "stow": "LOCKBOX_BTM",
+    "group": "Misc / Mission Kits",
+    "on": false
   }
 };
 
@@ -1248,22 +1274,6 @@ const AC_PRESETS = {
     ],
     "missionOff": []
   }
-};
-
-// SECTION 11 — CONFIG META (data version, separate from app code version)
-// configVersion increments by 1 on every custodian export. changelog is
-// newest-first. This is the DATA version; APP_VERSION (persist.js) is the
-// CODE version. The two are independent on purpose.
-const AC_META = {
-  "configVersion": 1,
-  "configReleasedAt": "2026-06-22T04:00:47.904Z",
-  "changelog": [
-    {
-      "version": 1,
-      "at": "2026-06-22T04:00:47.904Z",
-      "note": "Baseline configuration."
-    }
-  ]
 };
 
 // EXPORT
